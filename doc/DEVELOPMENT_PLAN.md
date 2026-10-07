@@ -14,12 +14,12 @@ Related: [PRD.md](PRD.md) · [architecture.md](architecture.md)
 | --------- | ------------------------ | ------ | ------ | ------- |
 | 0         | Planning & documentation | 3      | 3      | ✅      |
 | 1         | Foundation               | 9      | 9      | ✅      |
-| 2         | Authentication           | 9      | 0      | ⬜      |
+| 2         | Authentication           | 9      | 9      | ✅      |
 | 3         | Doctors                  | 10     | 0      | ⬜      |
 | 4         | Patients                 | 7      | 0      | ⬜      |
 | 5         | Dashboard                | 8      | 0      | ⬜      |
 | 6         | Quality & delivery       | 9      | 0      | ⬜      |
-| **Total** |                          | **55** | **12** | **22%** |
+| **Total** |                          | **55** | **21** | **38%** |
 
 ---
 
@@ -53,21 +53,21 @@ Related: [PRD.md](PRD.md) · [architecture.md](architecture.md)
 
 ---
 
-## Phase 2: Authentication ⬜
+## Phase 2: Authentication ✅
 
 **Goal:** only a signed-in admin can reach any page or API.
 
 | ID  | Task                                                                                            | App | Status |
 | --- | ----------------------------------------------------------------------------------------------- | --- | ------ |
-| A-1 | `User` model (`passwordHash` select: false)                                                     | api | ⬜     |
-| A-2 | `auth` module: `POST /auth/login` (bcrypt, JWT via jose, 8h), `GET /auth/me`                    | api | ⬜     |
-| A-3 | `authenticate` middleware (Bearer JWT), applied to all `/api/v1/*` routes except login          | api | ⬜     |
-| A-4 | Seed admin user (`scripts/seed.ts`, admin part)                                                 | api | ⬜     |
-| A-5 | `data/session.ts` (create/decrypt/delete cookie), `data/auth.ts` (`verifySession` with `cache`) | web | ⬜     |
-| A-6 | `data/api-client.ts` (base URL, Bearer token, timeout, error mapping, 401 → `/login`)           | web | ⬜     |
-| A-7 | `actions/auth.ts` (`login`, `logout`), `(auth)/login` page and `login-form` (`useActionState`)  | web | ⬜     |
-| A-8 | `src/proxy.ts`: optimistic redirect for protected and public routes                             | web | ⬜     |
-| A-9 | `(dashboard)/layout.tsx` app shell: sidebar, mobile drawer, topbar, user menu, logout           | web | ⬜     |
+| A-1 | `User` model (`passwordHash` select: false)                                                     | api | ✅     |
+| A-2 | `auth` module: `POST /auth/login` (bcrypt, JWT via jose, 8h), `GET /auth/me`                    | api | ✅     |
+| A-3 | `authenticate` middleware (Bearer JWT), applied to all `/api/v1/*` routes except login          | api | ✅     |
+| A-4 | Seed admin user (`scripts/seed.ts`, admin part)                                                 | api | ✅     |
+| A-5 | `data/session.ts` (create/decrypt/delete cookie), `data/auth.ts` (`verifySession` with `cache`) | web | ✅     |
+| A-6 | `data/api-client.ts` (base URL, Bearer token, timeout, error mapping, 401 → `/login`)           | web | ✅     |
+| A-7 | `actions/auth.ts` (`login`, `logout`), `(auth)/login` page and `login-form` (`useActionState`)  | web | ✅     |
+| A-8 | `src/proxy.ts`: optimistic redirect for protected and public routes                             | web | ✅     |
+| A-9 | `(dashboard)/layout.tsx` app shell: sidebar, mobile drawer, topbar, user menu, logout           | web | ✅     |
 
 **Done when:** opening `/doctors` while signed out redirects to `/login`; the API returns 401 without a token; login and logout work.
 
@@ -160,8 +160,9 @@ Related: [PRD.md](PRD.md) · [architecture.md](architecture.md)
 
 ## Change Log
 
-| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-10-07 | Plan created. Phase 0 (PRD, architecture) complete.                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| 2026-10-07 | Phase 1 complete. Next.js 16.4 (Cache Components + Partial Prefetching on, the template defaults; typed routes), shadcn/ui (Radix, nova), Express 5 + Mongoose 9 + Zod 4 + pino. API tests 4/4 pass; lint, typecheck and `next build` are clean. Decisions: Zod parsing in controllers (Express 5 `req.query` is read-only) instead of a `validate` middleware; TypeScript stays on 5.9 (typescript-eslint doesn't support TS 7); `shell-quote` overridden to a patched version. |
-| 2026-10-07 | F-0 done: `infra/` with MongoDB 8 in Docker. The init script is baked into a small image because Docker Desktop can't bind-mount from the G: drive. Repo layout is now `web/` · `api/` · `infra/`.                                                                                                                                                                                                                                                                               |
+| Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-10-07 | Plan created. Phase 0 (PRD, architecture) complete.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 2026-10-07 | Phase 2 complete. API: User model, `POST /auth/login` (bcrypt cost 12, constant-time path for unknown emails), `GET /auth/me`, `authenticate` middleware, idempotent admin seed; 12/12 API tests (in-memory MongoDB). Web: `data/` DAL (env, session, api-client, auth), login Server Action with `useActionState`, `src/proxy.ts`, `/logout` route handler, sidebar app shell with a streamed user menu. Verified end to end: redirects, forged cookie, login errors, cookie flags (`Secure; HttpOnly; SameSite=lax`). shadcn's `use-mobile` hook rewritten with `useSyncExternalStore` (React lint rule). |
+| 2026-10-07 | Phase 1 complete. Next.js 16.4 (Cache Components + Partial Prefetching on, the template defaults; typed routes), shadcn/ui (Radix, nova), Express 5 + Mongoose 9 + Zod 4 + pino. API tests 4/4 pass; lint, typecheck and `next build` are clean. Decisions: Zod parsing in controllers (Express 5 `req.query` is read-only) instead of a `validate` middleware; TypeScript stays on 5.9 (typescript-eslint doesn't support TS 7); `shell-quote` overridden to a patched version.                                                                                                                            |
+| 2026-10-07 | F-0 done: `infra/` with MongoDB 8 in Docker. The init script is baked into a small image because Docker Desktop can't bind-mount from the G: drive. Repo layout is now `web/` · `api/` · `infra/`.                                                                                                                                                                                                                                                                                                                                                                                                          |

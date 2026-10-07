@@ -128,6 +128,7 @@ web/
    │  ├─ page.tsx                 # redirect('/dashboard')
    │  ├─ not-found.tsx
    │  ├─ global-error.tsx
+   │  ├─ logout/route.ts         # GET: clears a session the API rejected → /login (excluded from proxy)
    │  ├─ (auth)/
    │  │  ├─ layout.tsx            # centered card layout
    │  │  └─ login/
@@ -162,9 +163,10 @@ web/
    │  ├─ doctors.ts               # createDoctor, updateDoctor, addPatientToDoctor
    │  └─ patients.ts              # createPatient, updatePatient, deletePatient
    ├─ data/                       # Data Access Layer: every file starts with import 'server-only'
-   │  ├─ api-client.ts            # apiFetch(): base URL, Bearer token, timeout, error → ApiError
-   │  ├─ session.ts               # encrypt/decrypt (jose), createSession, deleteSession
-   │  ├─ auth.ts                  # verifySession = cache(...), getCurrentUser
+   │  ├─ env.ts                   # Zod-validated API_URL / JWT_SECRET (only place reading secrets)
+   │  ├─ api-client.ts            # apiFetch(): base URL, Bearer token, timeout, problem+json → ApiRequestError
+   │  ├─ session.ts               # decrypt (jose verify), createSession, deleteSession, getSessionToken
+   │  ├─ auth.ts                  # verifySession = cache(...), getCurrentUser, signIn
    │  ├─ doctors.ts               # getDoctors(query), getDoctor(id), getDoctorPatients(id, query)
    │  ├─ patients.ts              # getPatients(query)
    │  └─ stats.ts                 # getSummary, getPatientsPerDoctor, getAdmissionsTrend, getConditionBreakdown
@@ -286,17 +288,17 @@ api/
 
 ## 6. Authentication & Authorization
 
-| Step | Where                        | What                                                                                                                                                                                                                             |
-| ---- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | `login-form.tsx`             | Calls `useActionState(login)`. Shows field errors and a pending state.                                                                                                                                                           |
-| 2    | `actions/auth.ts`            | Zod-validates input, then `POST /api/v1/auth/login`.                                                                                                                                                                             |
-| 3    | `api auth.service`           | bcrypt compare, sign JWT `{ sub, role }` (HS256, 8h). A generic "Invalid credentials" error on failure.                                                                                                                          |
-| 4    | `data/session.ts`            | `cookies().set('session', jwt, { httpOnly, secure, sameSite: 'lax', path: '/', expires })`, then `redirect('/dashboard')`.                                                                                                       |
-| 5    | `src/proxy.ts`               | On every page request (matcher excludes `_next/static`, `_next/image`, static assets): verify the JWT with jose. A protected route without a valid session goes to `/login`; `/login` with a valid session goes to `/dashboard`. |
-| 6    | `data/auth.ts`               | `verifySession = cache(...)` runs in every `data/*` function and every Server Action. If it's invalid, `redirect('/login')`.                                                                                                     |
-| 7    | `data/api-client.ts`         | Sends `Authorization: Bearer <jwt>`. On a 401 from the API, `redirect('/login')`.                                                                                                                                                |
-| 8    | `api authenticate.ts`        | Verifies the JWT on every `/api/v1/*` route except `/auth/login`, and attaches `req.user`.                                                                                                                                       |
-| 9    | `actions/auth.ts` → `logout` | `deleteSession()`, then `redirect('/login')`.                                                                                                                                                                                    |
+| Step | Where                        | What                                                                                                                                                                                                                                                                       |
+| ---- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | `login-form.tsx`             | Calls `useActionState(login)`. Shows field errors and a pending state.                                                                                                                                                                                                     |
+| 2    | `actions/auth.ts`            | Zod-validates input, then `POST /api/v1/auth/login`.                                                                                                                                                                                                                       |
+| 3    | `api auth.service`           | bcrypt compare, sign JWT `{ sub, role }` (HS256, 8h). A generic "Invalid credentials" error on failure.                                                                                                                                                                    |
+| 4    | `data/session.ts`            | `cookies().set('session', jwt, { httpOnly, secure, sameSite: 'lax', path: '/', expires })`, then `redirect('/dashboard')`.                                                                                                                                                 |
+| 5    | `src/proxy.ts`               | On every page request (matcher excludes `_next/static`, `_next/image`, static assets): verify the JWT with jose. A protected route without a valid session goes to `/login`; `/login` with a valid session goes to `/dashboard`.                                           |
+| 6    | `data/auth.ts`               | `verifySession = cache(...)` runs in every `data/*` function and every Server Action. If it's invalid, `redirect('/login')`.                                                                                                                                               |
+| 7    | `data/api-client.ts`         | Sends `Authorization: Bearer <jwt>`. On a 401 from the API, `redirect('/logout')`: that route handler deletes the cookie and redirects to `/login`. Without it, `proxy.ts` would bounce a still-signed (but rejected) cookie from `/login` back to `/dashboard` in a loop. |
+| 8    | `api authenticate.ts`        | Verifies the JWT on every `/api/v1/*` route except `/auth/login`, and attaches `req.user`.                                                                                                                                                                                 |
+| 9    | `actions/auth.ts` → `logout` | `deleteSession()`, then `redirect('/login')`.                                                                                                                                                                                                                              |
 
 The JWT payload holds only `sub` and `role`, with no PII, as the Next.js docs advise. The same `JWT_SECRET` is configured in both apps and never prefixed with `NEXT_PUBLIC_`.
 
