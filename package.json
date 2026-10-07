@@ -20,7 +20,8 @@
     "lint": "npm run lint --workspaces",
     "typecheck": "npm run typecheck --workspaces",
     "test": "npm run test -w api",
-    "seed": "npm run seed -w api",
+    "seed": "npm run seed -w api --",
+    "seed:demo": "npm run seed -w api -- --reset-demo-data",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
