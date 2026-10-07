@@ -21,9 +21,14 @@ export default defineConfig([
     },
   },
   {
-    // Vitest's asymmetric matchers (expect.any, objectContaining, ...) are typed `any`.
+    // Supertest response bodies and Vitest asymmetric matchers are typed `any` by design.
     files: ['tests/**/*.ts'],
-    rules: { '@typescript-eslint/no-unsafe-assignment': 'off' },
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+    },
   },
   {
     files: ['**/*.mjs'],

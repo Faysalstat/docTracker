@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { isDatabaseConnected } from './config/db.js';
+import { authenticate } from './middlewares/authenticate.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
+import { doctorRoutes } from './modules/doctors/doctor.routes.js';
+import { patientRoutes } from './modules/patients/patient.routes.js';
 
 export const routes = Router();
 
@@ -16,7 +19,7 @@ routes.get('/health', (_req, res) => {
 const v1 = Router();
 
 v1.use('/auth', authRoutes);
-// Protected feature routers are mounted with `authenticate`, e.g.
-// v1.use('/doctors', authenticate, doctorRoutes).
+v1.use('/doctors', authenticate, doctorRoutes);
+v1.use('/patients', authenticate, patientRoutes);
 
 routes.use('/api/v1', v1);
