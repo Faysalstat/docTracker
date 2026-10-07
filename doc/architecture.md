@@ -28,21 +28,21 @@ This design follows the official Next.js guidance (links in [References](#12-ref
 
 ## 2. Tech Stack
 
-| Layer         | Choice                                                                                  | Why                                                                                                    |
-| ------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Web framework | Next.js 16, App Router, React 19, TypeScript (strict)                                   | Required. Server Components and Server Actions are the documented default.                             |
-| UI            | Tailwind CSS v4 + shadcn/ui (Radix), lucide-react                                       | Accessible primitives; we own the component code.                                                      |
-| Charts        | Recharts (client components)                                                            | Composable, responsive, SVG-based.                                                                     |
-| Validation    | Zod (both apps)                                                                         | Same validation library on both sides; also used in the Next.js docs examples.                         |
-| Session (web) | `jose`, `server-only`                                                                   | The session library the Next.js auth guide uses; guards against importing server code into the client. |
-| API framework | Express 5, TypeScript                                                                   | Required. v5 forwards rejected promises to error middleware.                                           |
-| ODM           | Mongoose 9                                                                              | Schemas, indexes, hooks.                                                                               |
-| API security  | helmet, bcrypt, jose                                                                    | Express production security best practices.                                                            |
-| Logging       | pino + pino-http                                                                        | Structured, low-overhead logs.                                                                         |
-| Testing       | Vitest, supertest, mongodb-memory-server                                                | Fast API integration tests.                                                                            |
-| Tooling       | npm workspaces, ESLint (flat `eslint.config.mjs`), Prettier                             | One install; Next 16 default lint config.                                                              |
-| Local infra   | Docker Compose (`infra/`): MongoDB 8 with a named volume and a least-privilege app user | One command to set up; same setup on every machine.                                                    |
-| Hosting       | Vercel (web), Render (api), MongoDB Atlas                                               | Free tiers, simple CI/CD.                                                                              |
+| Layer         | Choice                                                                                                    | Why                                                                                                    |
+| ------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Web framework | Next.js 16, App Router, React 19, TypeScript (strict)                                                     | Required. Server Components and Server Actions are the documented default.                             |
+| UI            | Tailwind CSS v4 + shadcn/ui (Radix), lucide-react                                                         | Accessible primitives; we own the component code.                                                      |
+| Charts        | Recharts (client components)                                                                              | Composable, responsive, SVG-based.                                                                     |
+| Validation    | Zod (both apps)                                                                                           | Same validation library on both sides; also used in the Next.js docs examples.                         |
+| Session (web) | `jose`, `server-only`                                                                                     | The session library the Next.js auth guide uses; guards against importing server code into the client. |
+| API framework | Express 5, TypeScript                                                                                     | Required. v5 forwards rejected promises to error middleware.                                           |
+| ODM           | Mongoose 9                                                                                                | Schemas, indexes, hooks.                                                                               |
+| API security  | helmet, bcrypt, jose                                                                                      | Express production security best practices.                                                            |
+| Logging       | pino + pino-http                                                                                          | Structured, low-overhead logs.                                                                         |
+| Testing       | API: Vitest, supertest, mongodb-memory-server. Web: Playwright E2E (Chromium, desktop + mobile viewports) | Fast API integration tests; real-browser checks of the main flows.                                     |
+| Tooling       | npm workspaces, ESLint (flat `eslint.config.mjs`), Prettier                                               | One install; Next 16 default lint config.                                                              |
+| Local infra   | Docker Compose (`infra/`): MongoDB 8 with a named volume and a least-privilege app user                   | One command to set up; same setup on every machine.                                                    |
+| Hosting       | Vercel (web), Render (api), MongoDB Atlas                                                                 | Free tiers, simple CI/CD.                                                                              |
 
 ---
 
@@ -57,7 +57,7 @@ This design follows the official Next.js guidance (links in [References](#12-ref
   - The JWT never reaches client JavaScript.
   - No CORS setup is needed.
   - Less JavaScript ships to the browser.
-- **Trade-off:** search and filter changes cost a server round trip. This is mitigated by streaming with `<Suspense>`, `loading.tsx` skeletons, and `useTransition` pending states.
+- **Trade-off:** search and filter changes cost a server round trip. This is mitigated by streaming with `<Suspense>`, in-page skeletons, dimming the current rows during transitions, and `useTransition` pending states.
 
 ### D2. The URL is the state store, so no Redux and no TanStack Query
 
@@ -86,6 +86,13 @@ This design follows the official Next.js guidance (links in [References](#12-ref
   - A case-insensitive regex (`/i`) can't use an index efficiently.
   - `$text` only matches whole words.
 - Each index is verified with `explain()`: it must show IXSCAN, not COLLSCAN.
+
+### As-built notes (Phase 3)
+
+- **Stable pagination:** every sort includes `_id` as a tiebreaker, and `_id` is part of each sort index, so pages never repeat or skip rows and the sort stays index-backed.
+- **Doctor list patient counts:** one `$group` over the current page's doctor ids, served by the `{ doctor, admissionDate }` index, not a `$lookup` per row.
+- **Sidebar active state:** `usePathname()` suspends while prerendering routes with unknown dynamic params (`/doctors/[id]`), so only the nav links sit in `<Suspense>`, with a fallback that shows the same links without the highlight. The rest of the shell stays prerendered.
+- **Request memoization:** `getDoctor` is wrapped in React `cache`, so the profile and the patients section share one API call.
 
 ---
 
@@ -139,23 +146,19 @@ web/
    │     ├─ _components/          # app-sidebar.tsx, mobile-nav.tsx, topbar.tsx, user-menu.tsx
    │     ├─ dashboard/
    │     │  ├─ page.tsx           # parallel fetches, one <Suspense> per widget
-   │     │  ├─ loading.tsx
    │     │  ├─ error.tsx
    │     │  └─ _components/       # kpi-cards.tsx, patients-per-doctor-chart.tsx,
    │     │                        # admissions-trend-chart.tsx, condition-donut.tsx, date-range-select.tsx
    │     ├─ doctors/
    │     │  ├─ page.tsx           # reads searchParams → <Suspense key=…><DoctorsTable/></Suspense>
-   │     │  ├─ loading.tsx
    │     │  ├─ error.tsx
    │     │  ├─ _components/       # doctors-table.tsx, doctor-filters.tsx, doctor-form-dialog.tsx
    │     │  └─ [id]/
    │     │     ├─ page.tsx        # doctor profile + patients of doctor
-   │     │     ├─ loading.tsx
    │     │     ├─ not-found.tsx
    │     │     └─ _components/    # doctor-profile-card.tsx, doctor-patients-table.tsx, add-patient-dialog.tsx
    │     └─ patients/
    │        ├─ page.tsx
-   │        ├─ loading.tsx
    │        ├─ error.tsx
    │        └─ _components/       # patients-table.tsx, patient-filters.tsx, patient-form-sheet.tsx
    ├─ actions/                    # 'use server' only: thin, delegate to data/
@@ -189,7 +192,7 @@ web/
 - Only `src/data/` reads `process.env` secrets or calls the API. Nothing in `data/` may be imported by a `'use client'` file; `server-only` makes such an import a build error.
 - `src/actions/*` re-validate input with Zod, call `verifySession()`, delegate to `data/`, then `revalidatePath()`. They return only `{ ok, errors?, message? }`, never raw records.
 - Server Components are the default. `'use client'` appears only on the interactive leaves: forms, filters, pagination controls, charts, dialogs.
-- Every route segment has `loading.tsx` and `error.tsx`. Detail routes also have `not-found.tsx`, triggered by `notFound()` on a 404 from the API.
+- Every data route has `error.tsx`; loading states come from `<Suspense>` boundaries inside the page. Detail routes also have `not-found.tsx`, triggered by `notFound()` on a 404 from the API.
 
 ### 4.2 `api/`: Express
 
@@ -313,6 +316,7 @@ The JWT payload holds only `sub` and `role`, with no PII, as the Next.js docs ad
 | GET    | `/auth/me`                                      | 200                   | Current user.                                                                          |
 | GET    | `/doctors`                                      | 200                   | `page, limit, q, specialization, hospital, from, to, sort`                             |
 | POST   | `/doctors`                                      | 201 + `Location`      | 409 on duplicate email.                                                                |
+| GET    | `/doctors/hospitals`                            | 200                   | Distinct hospital names for the filter (`distinct` on the hospital index).             |
 | GET    | `/doctors/:id`                                  | 200                   | 404 if missing.                                                                        |
 | PATCH  | `/doctors/:id`                                  | 200                   | Partial update.                                                                        |
 | GET    | `/doctors/:id/patients`                         | 200                   | Paginated, plus the patient filters.                                                   |
@@ -340,18 +344,18 @@ The JWT payload holds only `sub` and `role`, with no PII, as the Next.js docs ad
 
 ## 8. Frontend Patterns
 
-| Concern                           | Pattern                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **List pages**                    | The page is a Server Component. `await searchParams` is parsed with `listQuerySchema` (Zod, with defaults), then rendered as `<Suspense key={serializedQuery} fallback={<TableSkeleton/>}><DoctorsTable query={q}/></Suspense>`. A new key shows the skeleton on every filter change.                                                                                                                                                        |
-| **Search / filters / pagination** | Client components read `useSearchParams()` and update the URL with `router.replace(pathname + '?' + params, { scroll: false })` inside `startTransition`. Search is debounced by 300 ms, and changing a filter resets `page` to 1. Pagination uses `<Link>`, which gets prefetching.                                                                                                                                                         |
-| **Mutations**                     | Forms call `useActionState(serverAction)`. Server-side Zod errors appear inline. `<SubmitButton>` shows the pending state. A toast confirms success. The action calls `revalidatePath('/doctors')` (and `/dashboard`).                                                                                                                                                                                                                       |
-| **Delete**                        | A `ConfirmDialog` calls the Server Action inside `startTransition`, with `useOptimistic` to remove the row immediately.                                                                                                                                                                                                                                                                                                                      |
-| **Dashboard**                     | Each widget is an async Server Component in its own `<Suspense>`, so they stream independently in parallel. Chart components are `'use client'` and receive plain serializable data as props.                                                                                                                                                                                                                                                |
-| **Loading / error**               | `loading.tsx` per segment, `error.tsx` boundaries with retry (`reset()`), `not-found.tsx` for unknown IDs. Empty states include a call to action.                                                                                                                                                                                                                                                                                            |
-| **Performance**                   | Server Components by default keep client JS small. `next/font` for fonts. Only the needed columns are fetched. No client-side data cache to sync. Interactive leaves are kept small to limit re-renders.                                                                                                                                                                                                                                     |
-| **Responsive**                    | Below `md`, the sidebar becomes a `Sheet` drawer and tables become stacked cards. Layouts are mobile-first, and the app is tested at 375px and 1440px.                                                                                                                                                                                                                                                                                       |
-| **Accessibility**                 | Radix primitives handle focus and ARIA. Every input has a label. Errors are linked with `aria-describedby`. Contrast meets WCAG AA.                                                                                                                                                                                                                                                                                                          |
-| **Caching**                       | `cacheComponents` is **on**, the Next 16 template default. Static UI (the layout chrome) is prerendered into a static shell. Anything reading `cookies()` or `searchParams`, which is all API data, sits inside `<Suspense>` and streams at request time; with Cache Components, reading them outside a boundary is a build error. API data is not cached with `use cache`, because the session token must never become part of a cache key. |
+| Concern                           | Pattern                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **List pages**                    | The page is a Server Component whose header is in the static shell. A child async component awaits `searchParams`, parses them with a lenient Zod schema (invalid values fall back to defaults), fetches, and renders inside `<Suspense fallback={<TableSkeleton/>}>`.                                                                                                                                                                         |
+| **Search / filters / pagination** | Client components read `useSearchParams()` and update the URL with `router.replace(pathname + '?' + params, { scroll: false })` inside `startTransition`. Search is debounced by 300 ms, and changing a filter resets `page` to 1. Pagination uses `<Link>`, which gets prefetching.                                                                                                                                                           |
+| **Mutations**                     | Dialog forms submit from an event handler (`useFormAction` hook): Zod validates on the client for instant feedback, then the Server Action (inside `startTransition`) re-validates, calls `data/`, maps API errors (400 → field errors, 409 → email taken) to an `ActionResult`, and calls `refresh()`. Unlike `<form action>`, this keeps the input when there are errors. The login form keeps `useActionState` for progressive enhancement. |
+| **Delete**                        | `ConfirmDialog` (alert dialog) stays open and disabled while the Server Action runs, then closes on success; a toast reports the result and `refresh()` updates the list.                                                                                                                                                                                                                                                                      |
+| **Dashboard**                     | Each widget is an async Server Component in its own `<Suspense>`, so they stream independently in parallel. Chart components are `'use client'` and receive plain serializable data as props.                                                                                                                                                                                                                                                  |
+| **Loading / error**               | `<Suspense>` boundaries inside pages give per-section skeletons, so no `loading.tsx` is needed (the static shell already renders instantly). Filter changes run in a transition: the current rows stay visible and dim (`ListContent`) instead of flashing a skeleton. `error.tsx` boundaries use `retry()`; `not-found.tsx` for unknown IDs.                                                                                                  |
+| **Performance**                   | Server Components by default keep client JS small. `next/font` for fonts. Only the needed columns are fetched. No client-side data cache to sync. Interactive leaves are kept small to limit re-renders.                                                                                                                                                                                                                                       |
+| **Responsive**                    | Below `md`, the sidebar becomes a `Sheet` drawer and tables become stacked cards. Layouts are mobile-first, and the app is tested at 375px and 1440px.                                                                                                                                                                                                                                                                                         |
+| **Accessibility**                 | Radix primitives handle focus and ARIA. Every input has a label. Errors are linked with `aria-describedby`. Contrast meets WCAG AA.                                                                                                                                                                                                                                                                                                            |
+| **Caching**                       | `cacheComponents` is **on**, the Next 16 template default. Static UI (the layout chrome) is prerendered into a static shell. Anything reading `cookies()` or `searchParams`, which is all API data, sits inside `<Suspense>` and streams at request time; with Cache Components, reading them outside a boundary is a build error. API data is not cached with `use cache`, because the session token must never become part of a cache key.   |
 
 ---
 

@@ -5,3 +5,6 @@ coverage
 package-lock.json
 next-env.d.ts
 doc/*.pdf
+test-results
+playwright-report
+**/e2e/.auth

@@ -1,5 +1,4 @@
 import { Suspense } from 'react';
-import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from './_components/app-sidebar';
 import { UserMenu } from './_components/user-menu';
@@ -20,7 +19,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <SidebarInset>
         <header className="bg-background/95 supports-backdrop-filter:bg-background/80 sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b px-4 backdrop-blur">
           <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 data-[orientation=vertical]:h-4" />
+          <div className="bg-border mr-1 h-4 w-px" aria-hidden />
           <span className="text-muted-foreground text-sm">Admin portal</span>
         </header>
         <div className="flex flex-1 flex-col">{children}</div>
