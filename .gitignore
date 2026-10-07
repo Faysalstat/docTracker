@@ -1,0 +1,29 @@
+# dependencies
+node_modules/
+
+# env files (commit only .env.example)
+.env
+.env.*
+!.env.example
+
+# build output
+.next/
+dist/
+build/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# local tooling
+.claude/
