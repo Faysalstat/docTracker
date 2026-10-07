@@ -1,0 +1,34 @@
+{
+  "name": "doctor-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Secure admin portal to manage doctors and their patients, with analytics.",
+  "workspaces": [
+    "web",
+    "api"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "infra:up": "docker compose -f infra/docker-compose.yml up -d --build",
+    "infra:down": "docker compose -f infra/docker-compose.yml down",
+    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w api\" \"npm run dev -w web\"",
+    "dev:api": "npm run dev -w api",
+    "dev:web": "npm run dev -w web",
+    "build": "npm run build -w api && npm run build -w web",
+    "lint": "npm run lint --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test -w api",
+    "seed": "npm run seed -w api",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "overrides": {
+    "shell-quote": "^1.11.0"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5",
+    "prettier": "^3.9.9"
+  }
+}
