@@ -32,6 +32,10 @@ export function SelectFilter({
 }) {
   const { searchParams, setParams } = useListState();
   const current = searchParams.get(param) ?? defaultValue ?? (allLabel ? ALL : undefined);
+  // Radix only knows an item's label after the options mount in the browser; passing it
+  // explicitly puts the selected label in the server HTML (no blank selects before hydration).
+  const currentLabel =
+    current === ALL ? allLabel : options.find((option) => option.value === current)?.label;
 
   return (
     <Select
@@ -41,7 +45,7 @@ export function SelectFilter({
       }
     >
       <SelectTrigger aria-label={label} className={cn('w-full sm:w-44', className)}>
-        <SelectValue placeholder={label} />
+        <SelectValue placeholder={label}>{currentLabel}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {allLabel && <SelectItem value={ALL}>{allLabel}</SelectItem>}

@@ -4,10 +4,10 @@ import { Pagination } from '@/components/data-table/pagination';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { PatientFilters } from '@/components/patients/patient-filters';
 import { PatientFormDialog } from '@/components/patients/patient-form-dialog';
+import { PatientsTable } from '@/components/patients/patients-table';
 import { Button } from '@/components/ui/button';
-import { getDoctor, getDoctorPatients } from '@/data/doctors';
+import { getDoctor, getDoctorOptions, getDoctorPatients } from '@/data/doctors';
 import { parsePatientListParams, type RawSearchParams } from '@/lib/search-params';
-import { DoctorPatientsTable } from './doctor-patients-table';
 
 export async function DoctorPatients({
   params,
@@ -19,7 +19,11 @@ export async function DoctorPatients({
   const { id } = await params;
   const query = parsePatientListParams(await searchParams);
   // getDoctor is memoized per request, so this shares the profile's API call.
-  const [doctor, patients] = await Promise.all([getDoctor(id), getDoctorPatients(id, query)]);
+  const [doctor, patients, doctorOptions] = await Promise.all([
+    getDoctor(id),
+    getDoctorPatients(id, query),
+    getDoctorOptions(),
+  ]);
   const isFiltered = Boolean(
     query.q || query.condition || query.status || query.gender || query.from || query.to,
   );
@@ -52,7 +56,7 @@ export async function DoctorPatients({
       <PatientFilters />
       <ListContent>
         {patients.data.length > 0 ? (
-          <DoctorPatientsTable patients={patients.data} />
+          <PatientsTable patients={patients.data} doctorOptions={doctorOptions} />
         ) : (
           <EmptyState
             icon={Users}

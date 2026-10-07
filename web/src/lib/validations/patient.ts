@@ -26,4 +26,9 @@ export const patientFormSchema = z.object({
   doctorId: z.string().regex(OBJECT_ID_PATTERN, 'Select a doctor').optional(),
 });
 
+/** Creating from the patients page: the doctor is chosen in the form, so it is required. */
+export const patientWithDoctorSchema = patientFormSchema.extend({
+  doctorId: z.string('Select a doctor').regex(OBJECT_ID_PATTERN, 'Select a doctor'),
+});
+
 export type PatientFormInput = z.infer<typeof patientFormSchema>;

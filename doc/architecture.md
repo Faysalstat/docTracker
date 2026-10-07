@@ -92,7 +92,14 @@ This design follows the official Next.js guidance (links in [References](#12-ref
 - **Stable pagination:** every sort includes `_id` as a tiebreaker, and `_id` is part of each sort index, so pages never repeat or skip rows and the sort stays index-backed.
 - **Doctor list patient counts:** one `$group` over the current page's doctor ids, served by the `{ doctor, admissionDate }` index, not a `$lookup` per row.
 - **Sidebar active state:** `usePathname()` suspends while prerendering routes with unknown dynamic params (`/doctors/[id]`), so only the nav links sit in `<Suspense>`, with a fallback that shows the same links without the highlight. The rest of the shell stays prerendered.
-- **Request memoization:** `getDoctor` is wrapped in React `cache`, so the profile and the patients section share one API call.
+- **Request memoization:** `getDoctor` and `getDoctorOptions` are wrapped in React `cache`, so components on the same page share one API call.
+
+### As-built notes (Phase 4)
+
+- **One patients table:** `components/patients/patients-table.tsx` (client) serves both the patients page (with a doctor column) and the doctor page. Delete uses `useOptimistic`, so the row disappears immediately and React restores it automatically if the action fails.
+- **Edit in a dialog, not a sheet:** for consistency with create; the patient dialog has three modes (`create` with a doctor picker, `add-to-doctor`, `edit` with optional reassignment).
+- **Selects render their label on the server:** Radix `SelectValue` only knows an item's label after the options mount, so filters pass the selected label as children. Otherwise they render blank until hydration.
+- **E2E runs serially:** specs share one real database and one local server (`workers: 1`) and wait for the streamed list before interacting.
 
 ---
 
@@ -309,27 +316,28 @@ The JWT payload holds only `sub` and `role`, with no PII, as the Next.js docs ad
 
 ## 7. API Design (REST, `/api/v1`)
 
-| Method | Path                                            | Success               | Notes                                                                                  |
-| ------ | ----------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------- |
-| GET    | `/health`                                       | 200                   | Liveness check (no auth).                                                              |
-| POST   | `/auth/login`                                   | 200 `{ token, user }` |                                                                                        |
-| GET    | `/auth/me`                                      | 200                   | Current user.                                                                          |
-| GET    | `/doctors`                                      | 200                   | `page, limit, q, specialization, hospital, from, to, sort`                             |
-| POST   | `/doctors`                                      | 201 + `Location`      | 409 on duplicate email.                                                                |
-| GET    | `/doctors/hospitals`                            | 200                   | Distinct hospital names for the filter (`distinct` on the hospital index).             |
-| GET    | `/doctors/:id`                                  | 200                   | 404 if missing.                                                                        |
-| PATCH  | `/doctors/:id`                                  | 200                   | Partial update.                                                                        |
-| GET    | `/doctors/:id/patients`                         | 200                   | Paginated, plus the patient filters.                                                   |
-| POST   | `/doctors/:id/patients`                         | 201                   | Adds a patient under this doctor.                                                      |
-| GET    | `/patients`                                     | 200                   | `page, limit, q, condition, status, gender, doctorId, from, to, sort`                  |
-| POST   | `/patients`                                     | 201                   |                                                                                        |
-| GET    | `/patients/:id`                                 | 200                   |                                                                                        |
-| PATCH  | `/patients/:id`                                 | 200                   |                                                                                        |
-| DELETE | `/patients/:id`                                 | 204                   |                                                                                        |
-| GET    | `/stats/summary`                                | 200                   | totalDoctors, totalPatients, avgPatientsPerDoctor, newPatientsThisMonth (one `$facet`) |
-| GET    | `/stats/patients-per-doctor?limit=10`           | 200                   | `$group` by doctor → `$sort` → `$limit` → `$lookup`                                    |
-| GET    | `/stats/admissions?from&to&interval=day\|month` | 200                   | `$match` admissionDate → `$group` by `$dateTrunc`                                      |
-| GET    | `/stats/conditions?from&to`                     | 200                   | `$group` by condition                                                                  |
+| Method | Path                                            | Success               | Notes                                                                                       |
+| ------ | ----------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------- |
+| GET    | `/health`                                       | 200                   | Liveness check (no auth).                                                                   |
+| POST   | `/auth/login`                                   | 200 `{ token, user }` |                                                                                             |
+| GET    | `/auth/me`                                      | 200                   | Current user.                                                                               |
+| GET    | `/doctors`                                      | 200                   | `page, limit, q, specialization, hospital, from, to, sort`                                  |
+| POST   | `/doctors`                                      | 201 + `Location`      | 409 on duplicate email.                                                                     |
+| GET    | `/doctors/options`                              | 200                   | `{ id, name }` pairs for doctor pickers, sorted via the `nameLower` index (capped at 1000). |
+| GET    | `/doctors/hospitals`                            | 200                   | Distinct hospital names for the filter (`distinct` on the hospital index).                  |
+| GET    | `/doctors/:id`                                  | 200                   | 404 if missing.                                                                             |
+| PATCH  | `/doctors/:id`                                  | 200                   | Partial update.                                                                             |
+| GET    | `/doctors/:id/patients`                         | 200                   | Paginated, plus the patient filters.                                                        |
+| POST   | `/doctors/:id/patients`                         | 201                   | Adds a patient under this doctor.                                                           |
+| GET    | `/patients`                                     | 200                   | `page, limit, q, condition, status, gender, doctorId, from, to, sort`                       |
+| POST   | `/patients`                                     | 201                   |                                                                                             |
+| GET    | `/patients/:id`                                 | 200                   |                                                                                             |
+| PATCH  | `/patients/:id`                                 | 200                   |                                                                                             |
+| DELETE | `/patients/:id`                                 | 204                   |                                                                                             |
+| GET    | `/stats/summary`                                | 200                   | totalDoctors, totalPatients, avgPatientsPerDoctor, newPatientsThisMonth (one `$facet`)      |
+| GET    | `/stats/patients-per-doctor?limit=10`           | 200                   | `$group` by doctor → `$sort` → `$limit` → `$lookup`                                         |
+| GET    | `/stats/admissions?from&to&interval=day\|month` | 200                   | `$match` admissionDate → `$group` by `$dateTrunc`                                           |
+| GET    | `/stats/conditions?from&to`                     | 200                   | `$group` by condition                                                                       |
 
 **Conventions**
 

@@ -38,6 +38,15 @@ export async function getDoctorPatients(id: string, params: PatientListParams) {
   return apiFetch<Paginated<Patient>>(`/doctors/${id}/patients`, { token, query });
 }
 
+/** id/name pairs for doctor pickers. Memoized per request (used by several components). */
+export const getDoctorOptions = cache(async () => {
+  const { token } = await verifySession();
+  const { data } = await apiFetch<{ data: { id: string; name: string }[] }>('/doctors/options', {
+    token,
+  });
+  return data.map((doctor) => ({ value: doctor.id, label: doctor.name }));
+});
+
 export async function getHospitals() {
   const { token } = await verifySession();
   const { data } = await apiFetch<{ data: string[] }>('/doctors/hospitals', { token });

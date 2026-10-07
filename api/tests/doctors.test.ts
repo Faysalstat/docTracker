@@ -168,6 +168,21 @@ describe('doctors API', () => {
     });
   });
 
+  describe('GET /doctors/options', () => {
+    it('returns id/name pairs sorted by name (case-insensitive)', async () => {
+      await createDoctor({ name: 'charlie Day' });
+      await createDoctor({ name: 'Alice Ray' });
+
+      const res = await api.get('/api/v1/doctors/options');
+      expect(res.status).toBe(200);
+      expect(res.body.data.map((d: { name: string }) => d.name)).toEqual([
+        'Alice Ray',
+        'charlie Day',
+      ]);
+      expect(Object.keys(res.body.data[0]).sort()).toEqual(['id', 'name']);
+    });
+  });
+
   describe('doctor patients', () => {
     it('adds patients under a doctor and lists only that doctor’s patients', async () => {
       const doctor = await createDoctor();

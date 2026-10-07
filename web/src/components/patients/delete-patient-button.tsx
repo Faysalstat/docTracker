@@ -6,7 +6,14 @@ import { removePatient } from '@/actions/patients';
 import { ConfirmDialog } from '@/components/feedback/confirm-dialog';
 import { Button } from '@/components/ui/button';
 
-export function DeletePatientButton({ patient }: { patient: { id: string; name: string } }) {
+export function DeletePatientButton({
+  patient,
+  onOptimisticDelete,
+}: {
+  patient: { id: string; name: string };
+  /** Hides the row immediately; React reverts it automatically if the action fails. */
+  onOptimisticDelete?: (id: string) => void;
+}) {
   return (
     <ConfirmDialog
       title="Delete patient?"
@@ -16,6 +23,7 @@ export function DeletePatientButton({ patient }: { patient: { id: string; name: 
         </>
       }
       onConfirm={async () => {
+        onOptimisticDelete?.(patient.id);
         const result = await removePatient(patient.id);
         if (result.ok) toast.success(result.message);
         else toast.error(result.message ?? 'Could not delete the patient.');

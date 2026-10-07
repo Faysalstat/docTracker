@@ -10,6 +10,10 @@ export async function list(req: Request, res: Response) {
   res.json(await doctorService.listDoctors(query));
 }
 
+export async function options(_req: Request, res: Response) {
+  res.json({ data: await doctorService.listDoctorOptions() });
+}
+
 export async function hospitals(_req: Request, res: Response) {
   res.json({ data: await doctorService.listHospitals() });
 }

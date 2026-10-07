@@ -17,6 +17,9 @@ const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
+  // Specs share one real database and a single local server, so run them serially.
+  workers: 1,
+  timeout: 60_000,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: [['list']],

@@ -3,7 +3,7 @@
 import { Loader2 } from 'lucide-react';
 import { useId, useState } from 'react';
 import { addPatient } from '@/actions/doctors';
-import { savePatient } from '@/actions/patients';
+import { addPatientWithDoctor, savePatient } from '@/actions/patients';
 import { FormAlert, SelectField, TextField } from '@/components/forms/form-fields';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,7 +20,11 @@ import { FieldGroup } from '@/components/ui/field';
 import { useFormAction } from '@/hooks/use-form-action';
 import { CONDITION_LABELS, GENDER_LABELS, STATUS_LABELS, toOptions } from '@/lib/constants';
 import { todayIso } from '@/lib/format';
-import { type PatientFormInput, patientFormSchema } from '@/lib/validations/patient';
+import {
+  type PatientFormInput,
+  patientFormSchema,
+  patientWithDoctorSchema,
+} from '@/lib/validations/patient';
 import type { ActionResult } from '@/types/api';
 import type { Patient } from '@/types/patient';
 
@@ -28,27 +32,47 @@ const GENDER_OPTIONS = toOptions(GENDER_LABELS);
 const CONDITION_OPTIONS = toOptions(CONDITION_LABELS);
 const STATUS_OPTIONS = toOptions(STATUS_LABELS);
 
-type PatientFormDialogProps = {
-  trigger: React.ReactNode;
-  /** Shows a doctor picker (e.g. to reassign a patient). Omitted when the doctor is fixed. */
-  doctorOptions?: { value: string; label: string }[];
-} & (
-  | { mode: 'add-to-doctor'; doctorId: string; doctorName: string; patient?: never }
-  | { mode: 'edit'; patient: Patient; doctorId?: never; doctorName?: never }
-);
+type DoctorOption = { value: string; label: string };
+
+type PatientFormDialogProps = { trigger: React.ReactNode } &
+  /** Patients page: the doctor is chosen in the form. */
+  (
+    | { mode: 'create'; doctorOptions: DoctorOption[] }
+    /** Doctor page: the doctor is fixed. */
+    | { mode: 'add-to-doctor'; doctorId: string; doctorName: string }
+    /** Edit; with `doctorOptions` the patient can be reassigned to another doctor. */
+    | { mode: 'edit'; patient: Patient; doctorOptions?: DoctorOption[] }
+  );
+
+function submitPatient(
+  props: PatientFormDialogProps,
+  input: PatientFormInput,
+): Promise<ActionResult> {
+  switch (props.mode) {
+    case 'create':
+      return addPatientWithDoctor(input);
+    case 'add-to-doctor':
+      return addPatient(props.doctorId, input);
+    case 'edit':
+      return savePatient(props.patient.id, input);
+  }
+}
+
+const DESCRIPTIONS = {
+  create: 'Register a new patient and assign a doctor.',
+  edit: 'Update the patient’s details.',
+} as const;
 
 export function PatientFormDialog(props: PatientFormDialogProps) {
-  const { trigger, doctorOptions, mode } = props;
+  const { trigger, mode } = props;
   const [open, setOpen] = useState(false);
   const formId = useId();
-  const patient = props.patient;
-
-  const action = (input: PatientFormInput): Promise<ActionResult> =>
-    mode === 'edit' ? savePatient(props.patient.id, input) : addPatient(props.doctorId, input);
+  const patient = mode === 'edit' ? props.patient : undefined;
+  const doctorOptions = mode === 'add-to-doctor' ? undefined : props.doctorOptions;
 
   const { onSubmit, pending, fieldErrors, formError, reset } = useFormAction({
-    schema: patientFormSchema,
-    action,
+    schema: mode === 'create' ? patientWithDoctorSchema : patientFormSchema,
+    action: (input) => submitPatient(props, input),
     onSuccess: () => setOpen(false),
   });
 
@@ -66,9 +90,9 @@ export function PatientFormDialog(props: PatientFormDialogProps) {
         <DialogHeader>
           <DialogTitle>{mode === 'edit' ? 'Edit patient' : 'Add patient'}</DialogTitle>
           <DialogDescription>
-            {mode === 'edit'
-              ? 'Update the patient’s details.'
-              : `Register a new patient under ${props.doctorName}.`}
+            {mode === 'add-to-doctor'
+              ? `Register a new patient under ${props.doctorName}.`
+              : DESCRIPTIONS[mode]}
           </DialogDescription>
         </DialogHeader>
 

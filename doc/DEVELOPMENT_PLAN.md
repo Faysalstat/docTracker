@@ -16,10 +16,10 @@ Related: [PRD.md](PRD.md) · [architecture.md](architecture.md)
 | 1         | Foundation               | 9      | 9      | ✅      |
 | 2         | Authentication           | 9      | 9      | ✅      |
 | 3         | Doctors                  | 10     | 10     | ✅      |
-| 4         | Patients                 | 7      | 3      | 🟡      |
+| 4         | Patients                 | 7      | 7      | ✅      |
 | 5         | Dashboard                | 8      | 0      | ⬜      |
 | 6         | Quality & delivery       | 10     | 0      | 🟡      |
-| **Total** |                          | **56** | **34** | **61%** |
+| **Total** |                          | **56** | **38** | **68%** |
 
 ---
 
@@ -94,7 +94,7 @@ Related: [PRD.md](PRD.md) · [architecture.md](architecture.md)
 
 ---
 
-## Phase 4: Patients 🟡
+## Phase 4: Patients ✅
 
 **Goal:** a dedicated patients page with full management.
 
@@ -103,10 +103,10 @@ Related: [PRD.md](PRD.md) · [architecture.md](architecture.md)
 | P-1 | `Patient` model, `nameLower` hook, ESR indexes                                                        | api | ✅     |
 | P-2 | `GET /patients` (q, condition, status, gender, doctorId, from/to, sort, page/limit), `POST /patients` | api | ✅     |
 | P-3 | `GET/PATCH/DELETE /patients/:id`                                                                      | api | ✅     |
-| P-4 | `data/patients.ts`, `actions/patients.ts`                                                             | web | ⬜     |
-| P-5 | `/patients` page: table, filters, URL state, loading/error                                            | web | ⬜     |
-| P-6 | Create/edit patient sheet (doctor select, validation)                                                 | web | 🟡     |
-| P-7 | Delete patient with confirm dialog and `useOptimistic`                                                | web | ⬜     |
+| P-4 | `data/patients.ts`, `actions/patients.ts`                                                             | web | ✅     |
+| P-5 | `/patients` page: table, filters, URL state, loading/error                                            | web | ✅     |
+| P-6 | Create/edit patient dialog (doctor select, validation)                                                | web | ✅     |
+| P-7 | Delete patient with confirm dialog and `useOptimistic`                                                | web | ✅     |
 
 **Done when:** all PRD PAT-1…PAT-7 acceptance criteria pass.
 
@@ -135,18 +135,18 @@ Related: [PRD.md](PRD.md) · [architecture.md](architecture.md)
 
 **Goal:** tested, verified, deployed and documented.
 
-| ID   | Task                                                                                                                                             | App  | Status |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ---- | ------ |
-| Q-1  | Full seed: ~50 doctors and ~2,000 patients over 12 months                                                                                        | api  | ⬜     |
-| Q-2  | API tests: auth (401/200), validation (400), duplicate (409), list filters and pagination, stats                                                 | api  | ⬜     |
-| Q-3  | `explain('executionStats')` on the list and stats queries shows IXSCAN                                                                           | api  | ⬜     |
-| Q-4  | Responsive pass (375px / 768px / 1440px), mobile cards and drawer                                                                                | web  | ⬜     |
-| Q-5  | Accessibility pass (keyboard, labels, contrast) and Lighthouse ≥ 90                                                                              | web  | ⬜     |
-| Q-6  | Deploy: MongoDB Atlas → Render (api) → Vercel (web); env vars set                                                                                | both | ⬜     |
-| Q-7  | README: pitch, setup, architecture, decisions D1 and D2, demo credentials                                                                        | root | ⬜     |
-| Q-8  | Screenshots for desktop and mobile, added to the README                                                                                          | root | ⬜     |
-| Q-9  | Final check against the PRD coverage table (§9) and submission                                                                                   | root | ⬜     |
-| Q-10 | Playwright E2E: auth, doctors (create, search + URL state, duplicate email, add and delete patient, not-found); extend to patients and dashboard | web  | 🟡     |
+| ID   | Task                                                                                                                                                                                                                     | App  | Status |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---- | ------ |
+| Q-1  | Full seed: ~50 doctors and ~2,000 patients over 12 months                                                                                                                                                                | api  | ⬜     |
+| Q-2  | API tests: auth (401/200), validation (400), duplicate (409), list filters and pagination, stats                                                                                                                         | api  | ⬜     |
+| Q-3  | `explain('executionStats')` on the list and stats queries shows IXSCAN                                                                                                                                                   | api  | ⬜     |
+| Q-4  | Responsive pass (375px / 768px / 1440px), mobile cards and drawer                                                                                                                                                        | web  | ⬜     |
+| Q-5  | Accessibility pass (keyboard, labels, contrast) and Lighthouse ≥ 90                                                                                                                                                      | web  | ⬜     |
+| Q-6  | Deploy: MongoDB Atlas → Render (api) → Vercel (web); env vars set                                                                                                                                                        | both | ⬜     |
+| Q-7  | README: pitch, setup, architecture, decisions D1 and D2, demo credentials                                                                                                                                                | root | ⬜     |
+| Q-8  | Screenshots for desktop and mobile, added to the README                                                                                                                                                                  | root | ⬜     |
+| Q-9  | Final check against the PRD coverage table (§9) and submission                                                                                                                                                           | root | ⬜     |
+| Q-10 | Playwright E2E: auth, doctors (create, search + URL state, duplicate email, add and delete patient, not-found), patients (create with doctor, filter by doctor/condition, edit, delete, validation); extend to dashboard | web  | 🟡     |
 
 ---
 
@@ -164,6 +164,7 @@ Related: [PRD.md](PRD.md) · [architecture.md](architecture.md)
 | Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-10-07 | Plan created. Phase 0 (PRD, architecture) complete.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 2026-10-07 | Phase 4 complete. API: `GET /doctors/options` (34 API tests). Web: patients page (search, condition/status/gender/doctor/date filters, sort, pagination), create with a doctor picker, edit (incl. reassigning the doctor), optimistic delete; one shared `PatientsTable` for the patients and doctor pages. Fixed selects rendering blank before hydration (label passed to `SelectValue`). E2E: 9 tests, now serial with readiness waits after load-related flakiness.                                                                                                                                                                                                                                                                                 |
 | 2026-10-07 | Phase 3 complete, plus the patients API (P-1 to P-3) brought forward because the doctor screens depend on it. API: Doctor/Patient models with ESR indexes (`_id` tiebreaker), search/filter/sort/pagination, hospitals endpoint, nested doctor patients; 33 API tests. Web: doctors list (URL state, transitions, desktop table and mobile cards), doctor detail (profile, patients, add/delete patient), shared data-table, form and feedback components, `PatientFormDialog` (edit mode ready for P-6). Added a Playwright E2E suite (7 tests, Q-10). Fixes: the sidebar `usePathname` now sits behind `<Suspense>` (dynamic-route prerender), and mobile filter layout, the sort default and the header divider were polished from screenshot review. |
 | 2026-10-07 | Phase 2 complete. API: User model, `POST /auth/login` (bcrypt cost 12, constant-time path for unknown emails), `GET /auth/me`, `authenticate` middleware, idempotent admin seed; 12/12 API tests (in-memory MongoDB). Web: `data/` DAL (env, session, api-client, auth), login Server Action with `useActionState`, `src/proxy.ts`, `/logout` route handler, sidebar app shell with a streamed user menu. Verified end to end: redirects, forged cookie, login errors, cookie flags (`Secure; HttpOnly; SameSite=lax`). shadcn's `use-mobile` hook rewritten with `useSyncExternalStore` (React lint rule).                                                                                                                                              |
 | 2026-10-07 | Phase 1 complete. Next.js 16.4 (Cache Components + Partial Prefetching on, the template defaults; typed routes), shadcn/ui (Radix, nova), Express 5 + Mongoose 9 + Zod 4 + pino. API tests 4/4 pass; lint, typecheck and `next build` are clean. Decisions: Zod parsing in controllers (Express 5 `req.query` is read-only) instead of a `validate` middleware; TypeScript stays on 5.9 (typescript-eslint doesn't support TS 7); `shell-quote` overridden to a patched version.                                                                                                                                                                                                                                                                         |

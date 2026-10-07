@@ -5,6 +5,7 @@ export const doctorRoutes = Router();
 
 doctorRoutes.get('/', doctorController.list);
 doctorRoutes.post('/', doctorController.create);
+doctorRoutes.get('/options', doctorController.options);
 doctorRoutes.get('/hospitals', doctorController.hospitals);
 doctorRoutes.get('/:id', doctorController.getById);
 doctorRoutes.patch('/:id', doctorController.update);

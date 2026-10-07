@@ -7,6 +7,9 @@ import { Patient } from '../patients/patient.model.js';
 import { Doctor } from './doctor.model.js';
 import type { CreateDoctorInput, ListDoctorsQuery, UpdateDoctorInput } from './doctor.schema.js';
 
+// Upper bound for picker lists; beyond this a searchable (server-side) combobox is needed.
+const MAX_DOCTOR_OPTIONS = 1000;
+
 const DOCTOR_FIELDS = 'name specialization hospital phone email createdAt updatedAt';
 
 export interface DoctorDto {
@@ -111,6 +114,21 @@ export async function updateDoctor(id: string, input: UpdateDoctorInput): Promis
   await doctor.save();
 
   return getDoctor(id);
+}
+
+export interface DoctorOption {
+  id: string;
+  name: string;
+}
+
+/** Lightweight id/name list for pickers, sorted via the { nameLower, _id } index. */
+export async function listDoctorOptions(): Promise<DoctorOption[]> {
+  const doctors = await Doctor.find()
+    .select('name')
+    .sort({ nameLower: 1, _id: 1 })
+    .limit(MAX_DOCTOR_OPTIONS)
+    .lean<{ _id: Types.ObjectId; name: string }[]>();
+  return doctors.map((doctor) => ({ id: doctor._id.toString(), name: doctor.name }));
 }
 
 /** Distinct hospital names for the filter dropdown (served by the hospital index). */

@@ -42,7 +42,7 @@ export function Pagination({ meta, noun }: { meta: PaginationMeta; noun: string 
             onValueChange={(value) => setParams({ limit: value, page: undefined })}
           >
             <SelectTrigger size="sm" aria-label="Rows per page" className="w-18">
-              <SelectValue />
+              <SelectValue>{limit}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {PAGE_SIZES.map((size) => (

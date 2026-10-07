@@ -11,6 +11,12 @@ async function chooseOption(page: Page, scope: Locator, label: string, option: s
 const fieldError = (scope: Locator, text: string) =>
   scope.getByRole('alert').filter({ hasText: text });
 
+/** Waits until the streamed list has rendered, so the page is hydrated and interactive. */
+async function gotoDoctors(page: Page) {
+  await page.goto('/doctors');
+  await expect(page.getByText(/Showing \d|No doctors/).first()).toBeVisible();
+}
+
 async function addDoctor(page: Page, name: string, email: string) {
   await page.getByRole('button', { name: 'Add doctor' }).click();
   const dialog = page.getByRole('dialog', { name: 'Add doctor' });
@@ -24,7 +30,7 @@ async function addDoctor(page: Page, name: string, email: string) {
 
 test.describe('doctors', () => {
   test('validates the form on the client before submitting', async ({ page }) => {
-    await page.goto('/doctors');
+    await gotoDoctors(page);
     await page.getByRole('button', { name: 'Add doctor' }).click();
     const dialog = page.getByRole('dialog', { name: 'Add doctor' });
     await dialog.getByRole('button', { name: 'Add doctor' }).click();
@@ -37,7 +43,7 @@ test.describe('doctors', () => {
     const name = `Zz E2E Doctor ${runId}`;
     const email = `e2e-${runId}@example.com`;
 
-    await page.goto('/doctors');
+    await gotoDoctors(page);
     await addDoctor(page, name, email);
     await expect(page.getByText('Doctor added')).toBeVisible();
     await expect(page.getByRole('dialog')).toBeHidden();
@@ -59,7 +65,7 @@ test.describe('doctors', () => {
 
   test('adds a patient under a doctor and deletes it', async ({ page }) => {
     const doctorName = `Zz E2E Care ${runId}`;
-    await page.goto('/doctors');
+    await gotoDoctors(page);
     await addDoctor(page, doctorName, `e2e-care-${runId}@example.com`);
     await expect(page.getByText('Doctor added')).toBeVisible();
 
