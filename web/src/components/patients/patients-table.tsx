@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/table';
 import { GENDER_LABELS } from '@/lib/constants';
 import { formatDate } from '@/lib/format';
-import type { Patient } from '@/types/patient';
+import type { Patient, PatientDoctor } from '@/types/patient';
 import { DeletePatientButton } from './delete-patient-button';
 import { ConditionBadge, StatusBadge } from './patient-badges';
 import { PatientFormDialog } from './patient-form-dialog';
@@ -47,9 +47,9 @@ function PatientActions({
   );
 }
 
-function DoctorLink({ doctor }: { doctor: NonNullable<Patient['doctor']> }) {
+function DoctorLink({ doctor }: { doctor: PatientDoctor }) {
   return (
-    <Link href={`/doctors/${doctor.id}`} className="hover:underline focus-visible:underline">
+    <Link href={`/doctors/${doctor._id}`} className="hover:underline focus-visible:underline">
       {doctor.name}
     </Link>
   );
@@ -67,7 +67,7 @@ export function PatientsTable({
   doctorOptions?: DoctorOption[];
 }) {
   const [rows, removeRow] = useOptimistic(patients, (current, removedId: string) =>
-    current.filter((patient) => patient.id !== removedId),
+    current.filter((patient) => patient._id !== removedId),
   );
 
   return (
@@ -91,7 +91,7 @@ export function PatientsTable({
           </TableHeader>
           <TableBody>
             {rows.map((patient) => (
-              <TableRow key={patient.id}>
+              <TableRow key={patient._id}>
                 <TableCell className="max-w-56">
                   <p className="truncate font-medium">{patient.name}</p>
                   {patient.email && (
@@ -100,7 +100,7 @@ export function PatientsTable({
                 </TableCell>
                 {showDoctor && (
                   <TableCell className="max-w-48 truncate">
-                    {patient.doctor ? <DoctorLink doctor={patient.doctor} /> : '—'}
+                    {patient.doctorId ? <DoctorLink doctor={patient.doctorId} /> : '—'}
                   </TableCell>
                 )}
                 <TableCell className="whitespace-nowrap">
@@ -132,16 +132,16 @@ export function PatientsTable({
       {/* Mobile: stacked cards */}
       <ul className="divide-y rounded-lg border md:hidden">
         {rows.map((patient) => (
-          <li key={patient.id} className="space-y-2 p-4">
+          <li key={patient._id} className="space-y-2 p-4">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate font-medium">{patient.name}</p>
                 <p className="text-muted-foreground text-xs">
                   {patient.age} · {GENDER_LABELS[patient.gender]} · {patient.phone}
                 </p>
-                {showDoctor && patient.doctor && (
+                {showDoctor && patient.doctorId && (
                   <p className="text-muted-foreground truncate text-xs">
-                    Dr: <DoctorLink doctor={patient.doctor} />
+                    Dr: <DoctorLink doctor={patient.doctorId} />
                   </p>
                 )}
               </div>

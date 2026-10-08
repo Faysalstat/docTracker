@@ -37,7 +37,7 @@ export function DoctorFormDialog({
 
   const { onSubmit, pending, fieldErrors, formError, reset } = useFormAction({
     schema: doctorFormSchema,
-    action: (input) => saveDoctor(doctor?.id ?? null, input),
+    action: (input) => saveDoctor(doctor?._id ?? null, input),
     onSuccess: () => setOpen(false),
   });
 

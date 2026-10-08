@@ -1,0 +1,42 @@
+# Render Blueprint for the Express API (doc/deployment.md, step 3).
+# The web app is deployed on Vercel, not here.
+services:
+  - type: web
+    name: doctor-tracker-api
+    runtime: node
+    plan: free
+    # Keep in the same region as the Atlas cluster (AWS us-east-1).
+    region: virginia
+    branch: master
+    # Installs only the api workspace from the root lockfile. --include=dev keeps
+    # TypeScript, which NODE_ENV=production would otherwise skip.
+    buildCommand: npm ci --include=dev -w api --include-workspace-root=false && npm run build -w api
+    startCommand: npm run serve -w api
+    # Public, DB-free route mounted before the auth gate in api/app.ts.
+    healthCheckPath: /api
+    autoDeployTrigger: commit
+    # Web-only commits do not redeploy the API.
+    buildFilter:
+      paths:
+        - api/**
+        - package.json
+        - package-lock.json
+        - render.yaml
+      ignoredPaths:
+        - api/test/**
+    envVars:
+      - key: NODE_VERSION
+        value: '22'
+      - key: NODE_ENV
+        value: production
+      # The API reads SERVER_PORT, not PORT; Render routes traffic to 10000.
+      - key: SERVER_PORT
+        value: '10000'
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      # Secrets: Render asks for these when the Blueprint is created. Copy them from
+      # api/.env.production. JWT_SECRET must equal the one set on Vercel.
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false

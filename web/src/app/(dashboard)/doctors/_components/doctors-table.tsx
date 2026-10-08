@@ -36,7 +36,7 @@ function DoctorIdentity({ doctor }: { doctor: Doctor }) {
       </Avatar>
       <div className="min-w-0">
         <Link
-          href={`/doctors/${doctor.id}`}
+          href={`/doctors/${doctor._id}`}
           className="block truncate font-medium hover:underline focus-visible:underline"
         >
           {doctor.name}
@@ -68,7 +68,7 @@ export function DoctorsTable({ doctors }: { doctors: Doctor[] }) {
           </TableHeader>
           <TableBody>
             {doctors.map((doctor) => (
-              <TableRow key={doctor.id}>
+              <TableRow key={doctor._id}>
                 <TableCell className="max-w-64">
                   <DoctorIdentity doctor={doctor} />
                 </TableCell>
@@ -85,7 +85,7 @@ export function DoctorsTable({ doctors }: { doctors: Doctor[] }) {
                   <div className="flex justify-end gap-1">
                     <EditDoctorButton doctor={doctor} />
                     <Button variant="ghost" size="icon-sm" asChild>
-                      <Link href={`/doctors/${doctor.id}`} aria-label={`View ${doctor.name}`}>
+                      <Link href={`/doctors/${doctor._id}`} aria-label={`View ${doctor.name}`}>
                         <ChevronRight />
                       </Link>
                     </Button>
@@ -100,7 +100,7 @@ export function DoctorsTable({ doctors }: { doctors: Doctor[] }) {
       {/* Mobile: stacked cards */}
       <ul className="divide-y rounded-lg border md:hidden">
         {doctors.map((doctor) => (
-          <li key={doctor.id} className="space-y-3 p-4">
+          <li key={doctor._id} className="space-y-3 p-4">
             <div className="flex items-start justify-between gap-2">
               <DoctorIdentity doctor={doctor} />
               <EditDoctorButton doctor={doctor} />

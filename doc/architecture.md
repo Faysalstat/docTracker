@@ -1,6 +1,6 @@
 # Doctor Tracker: Architecture & Implementation Plan
 
-Requirements: [PRD.md](PRD.md) · Target: **Next.js 16** (App Router), **Express 5**, **MongoDB**
+Requirements: [PRD.md](PRD.md) · Target: **Next.js 16** (App Router), **Express 4**, **MongoDB**
 
 This design follows the official Next.js guidance (links in [References](#12-references)). The rule: wherever Next.js documents a convention, we follow it rather than inventing our own.
 
@@ -10,7 +10,7 @@ This design follows the official Next.js guidance (links in [References](#12-ref
 
 ```
 ┌──────────┐  HTML / RSC / Server Actions   ┌──────────────────────────────┐   REST + Bearer JWT   ┌──────────────┐     ┌─────────┐
-│ Browser  │ ─────────────────────────────> │  Next.js 16 (web)            │ ───────────────────> │ Express 5    │ ──> │ MongoDB │
+│ Browser  │ ─────────────────────────────> │  Next.js 16 (web)            │ ───────────────────> │ Express 4    │ ──> │ MongoDB │
 │          │ <───────────────────────────── │  proxy.ts → optimistic auth  │ <─────────────────── │ (api)        │ <── │         │
 └──────────┘   httpOnly session cookie      │  Server Components → reads   │       JSON            │ authn/authz, │     └─────────┘
                                             │  Server Actions   → writes   │                       │ validation,  │
@@ -28,21 +28,21 @@ This design follows the official Next.js guidance (links in [References](#12-ref
 
 ## 2. Tech Stack
 
-| Layer         | Choice                                                                                                    | Why                                                                                                    |
-| ------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Web framework | Next.js 16, App Router, React 19, TypeScript (strict)                                                     | Required. Server Components and Server Actions are the documented default.                             |
-| UI            | Tailwind CSS v4 + shadcn/ui (Radix), lucide-react                                                         | Accessible primitives; we own the component code.                                                      |
-| Charts        | Recharts (client components)                                                                              | Composable, responsive, SVG-based.                                                                     |
-| Validation    | Zod (both apps)                                                                                           | Same validation library on both sides; also used in the Next.js docs examples.                         |
-| Session (web) | `jose`, `server-only`                                                                                     | The session library the Next.js auth guide uses; guards against importing server code into the client. |
-| API framework | Express 5, TypeScript                                                                                     | Required. v5 forwards rejected promises to error middleware.                                           |
-| ODM           | Mongoose 9                                                                                                | Schemas, indexes, hooks.                                                                               |
-| API security  | helmet, bcrypt, jose                                                                                      | Express production security best practices.                                                            |
-| Logging       | pino + pino-http                                                                                          | Structured, low-overhead logs.                                                                         |
-| Testing       | API: Vitest, supertest, mongodb-memory-server. Web: Playwright E2E (Chromium, desktop + mobile viewports) | Fast API integration tests; real-browser checks of the main flows.                                     |
-| Tooling       | npm workspaces, ESLint (flat `eslint.config.mjs`), Prettier                                               | One install; Next 16 default lint config.                                                              |
-| Local infra   | Docker Compose (`infra/`): MongoDB 8 with a named volume and a least-privilege app user                   | One command to set up; same setup on every machine.                                                    |
-| Hosting       | Vercel (web), Render (api), MongoDB Atlas                                                                 | Free tiers, simple CI/CD.                                                                              |
+| Layer         | Choice                                                                                                  | Why                                                                                                    |
+| ------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Web framework | Next.js 16, App Router, React 19, TypeScript (strict)                                                   | Required. Server Components and Server Actions are the documented default.                             |
+| UI            | Tailwind CSS v4 + shadcn/ui (Radix), lucide-react                                                       | Accessible primitives; we own the component code.                                                      |
+| Charts        | Recharts (client components)                                                                            | Composable, responsive, SVG-based.                                                                     |
+| Validation    | Zod (both apps)                                                                                         | Same validation library on both sides; also used in the Next.js docs examples.                         |
+| Session (web) | `jose`, `server-only`                                                                                   | The session library the Next.js auth guide uses; guards against importing server code into the client. |
+| API framework | Express 4, TypeScript compiled to CommonJS                                                              | Required; layout and patterns follow `.claude/rules/backend-nodejs.md`.                                |
+| ODM           | Mongoose 9                                                                                              | Schemas, indexes, hooks.                                                                               |
+| API security  | helmet, bcrypt, jsonwebtoken                                                                            | Express production security best practices.                                                            |
+| Logging       | `console.log` / `console.error`                                                                         | Project rule: no logging library.                                                                      |
+| Testing       | API: `node:test` scripts against the dev DB. Web: Playwright E2E (Chromium, desktop + mobile viewports) | Integration tests on the real database; real-browser checks of the main flows.                         |
+| Tooling       | npm workspaces, ESLint (flat `eslint.config.mjs`), Prettier                                             | One install; Next 16 default lint config.                                                              |
+| Local infra   | Docker Compose (`infra/`): MongoDB 8 with a named volume and a least-privilege app user                 | One command to set up; same setup on every machine.                                                    |
+| Hosting       | Vercel (web), Render (api), MongoDB Atlas                                                               | Free tiers, simple CI/CD.                                                                              |
 
 ---
 
@@ -72,7 +72,7 @@ This design follows the official Next.js guidance (links in [References](#12-ref
 ### D3. Two-layer session security (Next.js auth guide)
 
 - **Login flow:**
-  1. The Server Action `login` sends the credentials to `POST /api/v1/auth/login`.
+  1. The Server Action `login` sends the credentials to `POST /api/auth/login`.
   2. Express verifies the password with bcrypt and returns a signed JWT (HS256, 8h).
   3. Next stores the JWT in an httpOnly cookie using the `cookies()` API, with `secure`, `sameSite=lax`, `path=/` and `expires` set.
 - **Optimistic check:** `proxy.ts` verifies the JWT signature and expiry with `jose`, then redirects. It never calls the API or the database.
@@ -181,7 +181,7 @@ web/
    │  └─ patients.ts              # createPatient, updatePatient, deletePatient
    ├─ data/                       # Data Access Layer: every file starts with import 'server-only'
    │  ├─ env.ts                   # Zod-validated API_URL / JWT_SECRET (only place reading secrets)
-   │  ├─ api-client.ts            # apiFetch(): base URL, Bearer token, timeout, problem+json → ApiRequestError
+   │  ├─ api-client.ts            # apiFetch(): base URL, Bearer token, timeout, unwraps { isSuccess, message, body }
    │  ├─ session.ts               # decrypt (jose verify), createSession, deleteSession, getSessionToken
    │  ├─ auth.ts                  # verifySession = cache(...), getCurrentUser, signIn
    │  ├─ doctors.ts               # getDoctors(query), getDoctor(id), getDoctorPatients(id, query)
@@ -206,41 +206,31 @@ web/
 - Only `src/data/` reads `process.env` secrets or calls the API. Nothing in `data/` may be imported by a `'use client'` file; `server-only` makes such an import a build error.
 - `src/actions/*` re-validate input with Zod, call `verifySession()`, delegate to `data/`, then `revalidatePath()`. They return only `{ ok, errors?, message? }`, never raw records.
 - Server Components are the default. `'use client'` appears only on the interactive leaves: forms, filters, pagination controls, charts, dialogs.
-- Every data route has `error.tsx`; loading states come from `<Suspense>` boundaries inside the page. Detail routes also have `not-found.tsx`, triggered by `notFound()` on a 404 from the API.
+- Every data route has `error.tsx`; loading states come from `<Suspense>` boundaries inside the page. Detail routes also have `not-found.tsx`, triggered by `notFound()` when the API reports "X not found".
 
 ### 4.2 `api/`: Express
 
-The API uses a feature-module layout with a fixed layer order: **routes → controller (HTTP only) → service (business logic and queries) → model**.
+The API follows `.claude/rules/backend-nodejs.md`: a layer-based layout with a strict request flow, **app.ts → global middleware → router → controller → service → (repository) → model**. Source is TypeScript compiled to CommonJS.
 
 ```
 api/
-├─ tsconfig.json
-├─ eslint.config.mjs
-├─ .env.example
-├─ scripts/seed.ts                # 1 admin, ~50 doctors, ~2,000 patients over 12 months
-├─ tests/                         # *.test.ts (Vitest + supertest + mongodb-memory-server)
+├─ app.ts                         # dotenv → helmet → body-parser → cors → no-store → GET /api
+│                                 # → auth-middleware → routers → 404 / body-error fallback; connect() then listen
+├─ nodemon.json · tsconfig.json · eslint.config.mjs · .env.example
+├─ scripts/                       # seed.ts, demo-data.ts, migrate-rules-alignment.ts, sync-indexes.ts
+├─ test/                          # *.test.ts (node:test + fetch against the dev DB; each run deletes only its records)
+├─ backups/                       # mongodump archives (git-ignored)
 └─ src/
-   ├─ server.ts                   # connect DB → listen; graceful shutdown on SIGTERM/SIGINT
-   ├─ app.ts                      # helmet, json limit, pino-http, routes, 404, error handler
-   ├─ config/
-   │  ├─ env.ts                   # Zod-validated process.env (fail fast)
-   │  ├─ db.ts                    # mongoose connect, autoIndex only outside production
-   │  └─ logger.ts                # pino
-   ├─ middlewares/
-   │  ├─ authenticate.ts          # Bearer JWT (jose) → req.user
-   │  ├─ not-found.ts
-   │  └─ error-handler.ts         # ApiError / ZodError / Mongo dup key → problem+json
-   ├─ modules/
-   │  ├─ auth/      auth.routes.ts · auth.controller.ts · auth.service.ts · auth.schema.ts
-   │  ├─ users/     user.model.ts
-   │  ├─ doctors/   doctor.routes.ts · doctor.controller.ts · doctor.service.ts · doctor.model.ts · doctor.schema.ts
-   │  ├─ patients/  patient.routes.ts · patient.controller.ts · patient.service.ts · patient.model.ts · patient.schema.ts
-   │  └─ stats/     stats.routes.ts · stats.controller.ts · stats.service.ts
-   ├─ routes.ts                   # mounts modules under /api/v1, plus GET /health
-   └─ utils/
-      ├─ api-error.ts
-      ├─ pagination.ts            # parse page/limit, build meta
-      └─ escape-regex.ts
+   ├─ config/      load-env.ts (dotenv) · db.config.ts (MONGO_URI, pool options)
+   ├─ connector/   db-connector.ts (connect, close, assertObjectId)
+   ├─ model/       user.ts · doctor.ts · patient.ts · enums.ts · init-model.ts
+   ├─ router/      <feature>-route.ts       URL → controller only
+   ├─ controller/  <feature>-controller.ts  try → service(req) → sendSuccess; catch → sendError
+   ├─ service/     <feature>-service.ts     validation (Zod), permission checks, queries; throws Error
+   ├─ repository/  patient-repo.ts · stats-repo.ts (shared counts, aggregations)
+   ├─ middleware/  auth-middleware.ts · public-routes.ts · fallback-middleware.ts
+   ├─ types/       express.d.ts (req.userId, req.userRole, req.isAdmin)
+   └─ utils/       http-response.ts · jwt.ts · validate.ts · query.ts
 ```
 
 ---
@@ -249,19 +239,19 @@ api/
 
 ### User
 
-`email` (unique, lowercase), `passwordHash`, `name`, `role: 'admin'`, timestamps. `passwordHash` has `select: false`.
+Collection `user`. `email` (unique, lowercase), `password` (bcrypt hash, 10 rounds), `name`, `role: 'admin'`, timestamps. `password` has `select: false` and is loaded only at login. Every collection uses `versionKey: false` and a singular name (`user`, `doctor`, `patient`).
 
 ### Doctor
 
-| Field                 | Type   | Rules                                                 |
-| --------------------- | ------ | ----------------------------------------------------- |
-| name                  | string | required, 2–100, trimmed                              |
-| nameLower             | string | derived (pre-save / pre-update hook), used for search |
-| specialization        | string | required, from a fixed list                           |
-| hospital              | string | required                                              |
-| phone                 | string | required, E.164-ish pattern                           |
-| email                 | string | required, unique, lowercase                           |
-| createdAt / updatedAt | Date   | timestamps                                            |
+| Field                 | Type   | Rules                                              |
+| --------------------- | ------ | -------------------------------------------------- |
+| name                  | string | required, 2–100, trimmed                           |
+| nameLower             | string | derived by the service on every name write; search |
+| specialization        | string | required, from a fixed list                        |
+| hospital              | string | required                                           |
+| phone                 | string | required, E.164-ish pattern                        |
+| email                 | string | required, unique, lowercase                        |
+| createdAt / updatedAt | Date   | timestamps                                         |
 
 | Index (ESR)                            | Serves                                                |
 | -------------------------------------- | ----------------------------------------------------- |
@@ -283,12 +273,12 @@ api/
 | condition        | enum              | diabetes, hypertension, asthma, cardiac, respiratory, other |
 | status           | enum              | admitted, under_treatment, recovered                        |
 | admissionDate    | Date              | required, not in the future                                 |
-| doctor           | ObjectId → Doctor | required                                                    |
+| doctorId         | ObjectId → doctor | required; populated as `{ _id, name, specialization }`      |
 | timestamps       |                   |                                                             |
 
 | Index (ESR)                           | Serves                                          |
 | ------------------------------------- | ----------------------------------------------- |
-| `{ doctor: 1, admissionDate: -1 }`    | doctor's patients, patients-per-doctor `$group` |
+| `{ doctorId: 1, admissionDate: -1 }`  | doctor's patients, patients-per-doctor `$group` |
 | `{ condition: 1, admissionDate: -1 }` | condition filter + date sort/range              |
 | `{ status: 1, admissionDate: -1 }`    | status filter + date sort/range                 |
 | `{ admissionDate: -1 }`               | default list, date range, trend aggregation     |
@@ -296,8 +286,8 @@ api/
 
 **Query rules**
 
-- `find().select(projection).sort().skip().limit().lean()` runs in parallel with `countDocuments()` (`Promise.all`).
-- The doctor name for a patient list is filled in with `populate('doctor', 'name specialization')`, applied **after** `limit`, so it only touches one page of records.
+- `find().sort().skip().limit().lean()` runs in parallel with `countDocuments()` (`Promise.all`), and lists return `{ data, length }`.
+- The doctor for a patient list is filled in with `populate('doctorId', 'name specialization')`, applied **after** `limit`, so it only touches one page of records.
 - Pagination is offset-based, with `limit` capped at 100. If the data grows past ~100k records, switch to keyset (cursor) pagination on `(admissionDate, _id)`.
 - Stats use aggregation pipelines whose first stage is an index-backed `$match`. `$lookup` runs only on the top-N results.
 
@@ -310,7 +300,7 @@ api/
 | Doctors: name/email prefix search | `OR(IXSCAN(nameLower_1__id_1), IXSCAN(email_1))`          | 1 / 1                    |
 | Patients: default list            | `IXSCAN(admissionDate_-1__id_-1)`                         | 20 / 20                  |
 | Patients: condition + sort        | `IXSCAN(condition_1_admissionDate_-1__id_-1)`             | 20 / 20                  |
-| Patients: a doctor's patients     | `IXSCAN(doctor_1_admissionDate_-1__id_-1)`                | 20 / 20                  |
+| Patients: a doctor's patients     | `IXSCAN(doctorId_1_admissionDate_-1__id_-1)`              | 20 / 20                  |
 | Stats: admissions over time       | `IXSCAN(admissionDate…)` → `PROJECTION_COVERED` → `GROUP` | **0** (covered) / 29     |
 
 ---
@@ -320,69 +310,67 @@ api/
 | Step | Where                        | What                                                                                                                                                                                                                                                                       |
 | ---- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1    | `login-form.tsx`             | Calls `useActionState(login)`. Shows field errors and a pending state.                                                                                                                                                                                                     |
-| 2    | `actions/auth.ts`            | Zod-validates input, then `POST /api/v1/auth/login`.                                                                                                                                                                                                                       |
+| 2    | `actions/auth.ts`            | Zod-validates input, then `POST /api/auth/login`.                                                                                                                                                                                                                          |
 | 3    | `api auth.service`           | bcrypt compare, sign JWT `{ sub, role }` (HS256, 8h). A generic "Invalid credentials" error on failure.                                                                                                                                                                    |
 | 4    | `data/session.ts`            | `cookies().set('session', jwt, { httpOnly, secure, sameSite: 'lax', path: '/', expires })`, then `redirect('/dashboard')`.                                                                                                                                                 |
 | 5    | `src/proxy.ts`               | On every page request (matcher excludes `_next/static`, `_next/image`, static assets): verify the JWT with jose. A protected route without a valid session goes to `/login`; `/login` with a valid session goes to `/dashboard`.                                           |
 | 6    | `data/auth.ts`               | `verifySession = cache(...)` runs in every `data/*` function and every Server Action. If it's invalid, `redirect('/login')`.                                                                                                                                               |
 | 7    | `data/api-client.ts`         | Sends `Authorization: Bearer <jwt>`. On a 401 from the API, `redirect('/logout')`: that route handler deletes the cookie and redirects to `/login`. Without it, `proxy.ts` would bounce a still-signed (but rejected) cookie from `/login` back to `/dashboard` in a loop. |
-| 8    | `api authenticate.ts`        | Verifies the JWT on every `/api/v1/*` route except `/auth/login`, and attaches `req.user`.                                                                                                                                                                                 |
+| 8    | `api auth-middleware.ts`     | Mounted globally before every router. Verifies the JWT on every route not in `public-routes.ts` (only `POST /api/auth/login`), and sets `req.userId`, `req.userRole`, `req.isAdmin`.                                                                                       |
 | 9    | `actions/auth.ts` → `logout` | `deleteSession()`, then `redirect('/login')`.                                                                                                                                                                                                                              |
 
 The JWT payload holds only `sub` and `role`, with no PII, as the Next.js docs advise. The same `JWT_SECRET` is configured in both apps and never prefixed with `NEXT_PUBLIC_`.
 
 ---
 
-## 7. API Design (REST, `/api/v1`)
+## 7. API Design (REST, `/api`)
 
-| Method | Path                                                  | Success               | Notes                                                                                                                                                                                                                                                                        |
-| ------ | ----------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/health`                                             | 200                   | Liveness check (no auth).                                                                                                                                                                                                                                                    |
-| POST   | `/auth/login`                                         | 200 `{ token, user }` |                                                                                                                                                                                                                                                                              |
-| GET    | `/auth/me`                                            | 200                   | Current user.                                                                                                                                                                                                                                                                |
-| GET    | `/doctors`                                            | 200                   | `page, limit, q, specialization, hospital, from, to, sort`                                                                                                                                                                                                                   |
-| POST   | `/doctors`                                            | 201 + `Location`      | 409 on duplicate email.                                                                                                                                                                                                                                                      |
-| GET    | `/doctors/options`                                    | 200                   | `{ id, name }` pairs for doctor pickers, sorted via the `nameLower` index (capped at 1000).                                                                                                                                                                                  |
-| GET    | `/doctors/hospitals`                                  | 200                   | Distinct hospital names for the filter (`distinct` on the hospital index).                                                                                                                                                                                                   |
-| GET    | `/doctors/:id`                                        | 200                   | 404 if missing.                                                                                                                                                                                                                                                              |
-| PATCH  | `/doctors/:id`                                        | 200                   | Partial update.                                                                                                                                                                                                                                                              |
-| GET    | `/doctors/:id/patients`                               | 200                   | Paginated, plus the patient filters.                                                                                                                                                                                                                                         |
-| POST   | `/doctors/:id/patients`                               | 201                   | Adds a patient under this doctor.                                                                                                                                                                                                                                            |
-| GET    | `/patients`                                           | 200                   | `page, limit, q, condition, status, gender, doctorId, from, to, sort`                                                                                                                                                                                                        |
-| POST   | `/patients`                                           | 201                   |                                                                                                                                                                                                                                                                              |
-| GET    | `/patients/:id`                                       | 200                   |                                                                                                                                                                                                                                                                              |
-| PATCH  | `/patients/:id`                                       | 200                   |                                                                                                                                                                                                                                                                              |
-| DELETE | `/patients/:id`                                       | 204                   |                                                                                                                                                                                                                                                                              |
-| GET    | `/stats/summary?from&to`                              | 200                   | totalDoctors, totalPatients, avgPatientsPerDoctor, currentlyAdmitted, admissions in range, previous-period admissions. Parallel index-backed counts (not `$facet`, whose sub-pipelines can't use indexes). The previous period is returned only when records cover it fully. |
-| GET    | `/stats/patients-per-doctor?from&to&limit=10`         | 200                   | `$match` admissionDate → `$group` by doctor → `$sort` → `$limit` → `$lookup` (top N only)                                                                                                                                                                                    |
-| GET    | `/stats/admissions?from&to&interval=day\|week\|month` | 200                   | `$match` → `$group` by `$dateTrunc` (UTC, weeks start Monday); interval picked from range length when omitted; empty buckets zero-filled; the bucket still in progress is flagged `partial`                                                                                  |
-| GET    | `/stats/conditions?from&to`                           | 200                   | `$group` by condition                                                                                                                                                                                                                                                        |
+| Method | Path                                                      | Notes                                                                                                                                                                                                                                                                        |
+| ------ | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api`                                                    | Liveness check (no auth): `{ message: "API is alive" }`.                                                                                                                                                                                                                     |
+| POST   | `/api/auth/login`                                         | `{ token, expiresAt, user }`. 401 on any failure, with one generic message.                                                                                                                                                                                                  |
+| GET    | `/api/auth/me`                                            | Current user. 401 if the user no longer exists.                                                                                                                                                                                                                              |
+| GET    | `/api/doctor/list`                                        | `offset, limit, q, specialization, hospital, from, to, sort`                                                                                                                                                                                                                 |
+| POST   | `/api/doctor/create`                                      | "email already exists" on a duplicate.                                                                                                                                                                                                                                       |
+| GET    | `/api/doctor/options`                                     | `{ _id, name }` pairs for doctor pickers, sorted via the `nameLower` index (capped at 1000).                                                                                                                                                                                 |
+| GET    | `/api/doctor/hospitals`                                   | Distinct hospital names for the filter (`distinct` on the hospital index).                                                                                                                                                                                                   |
+| GET    | `/api/doctor/getbyid?id=`                                 | One doctor with `patientCount`; "Doctor not found" if missing.                                                                                                                                                                                                               |
+| PUT    | `/api/doctor/update/:id`                                  | Changes only the fields that are sent.                                                                                                                                                                                                                                       |
+| GET    | `/api/patient/list`                                       | `offset, limit, q, condition, status, gender, doctorId, from, to, sort`; "Doctor not found" for an unknown `doctorId`.                                                                                                                                                       |
+| POST   | `/api/patient/create`                                     | `doctorId` in the body.                                                                                                                                                                                                                                                      |
+| GET    | `/api/patient/getbyid?id=`                                |                                                                                                                                                                                                                                                                              |
+| PUT    | `/api/patient/update/:id`                                 | Changes only the fields that are sent, including the doctor.                                                                                                                                                                                                                 |
+| DELETE | `/api/patient/delete/:id`                                 | Returns `{ _id }`.                                                                                                                                                                                                                                                           |
+| GET    | `/api/stats/summary?from&to`                              | totalDoctors, totalPatients, avgPatientsPerDoctor, currentlyAdmitted, admissions in range, previous-period admissions. Parallel index-backed counts (not `$facet`, whose sub-pipelines can't use indexes). The previous period is returned only when records cover it fully. |
+| GET    | `/api/stats/patients-per-doctor?from&to&limit=10`         | `$match` admissionDate → `$group` by doctor → `$sort` → `$limit` → `$lookup` (top N only)                                                                                                                                                                                    |
+| GET    | `/api/stats/admissions?from&to&interval=day\|week\|month` | `$match` → `$group` by `$dateTrunc` (UTC, weeks start Monday); interval picked from range length when omitted; empty buckets zero-filled; the bucket still in progress is flagged `partial`                                                                                  |
+| GET    | `/api/stats/conditions?from&to`                           | `$group` by condition                                                                                                                                                                                                                                                        |
 
 **Conventions**
 
-- Collection resources use plural nouns. `PATCH` does partial updates. `sort` takes the form `field` or `-field`, checked against an allowlist.
-- **List response:** `{ "data": [...], "meta": { "page": 1, "limit": 20, "total": 134, "totalPages": 7 } }`
-- **Errors** follow **RFC 9457 Problem Details** (`application/problem+json`): `{ type, title, status, detail, errors? }`.
-- Status codes: 400 validation, 401 unauthenticated, 403 forbidden, 404 not found, 409 conflict, 500 internal (generic message only; details go to the logs).
-- Every `body`, `query` and `params` value is Zod-validated, and `:id` must be a valid ObjectId. Controllers call `schema.parse(req.query)` directly: Express 5 makes `req.query` read-only (so a mutating `validate` middleware doesn't fit), and it forwards the thrown `ZodError` to the error handler, which returns 400. The JSON body size limit is `100kb`.
-- Responses are DTOs: no `__v`, no `nameLower`, no `passwordHash`.
+- Paths are verb-like segments under `/api/<feature>` (`/create`, `/list`, `/getbyid`, `/update/:id`). `sort` takes the form `field` or `-field`, checked against an allowlist. Empty filter params count as "not provided".
+- **Every response** is `{ isSuccess, message, body }`, built by `utils/http-response.ts`. Lists put `{ data, length }` in `body` (`length` is the total number of matches).
+- **Errors:** services `throw new Error("<readable reason>")`; the controller answers `"<what failed>: <reason>"`, e.g. `"Doctor creation failed: email already exists"`. Mongoose duplicate-key and validation errors are turned into readable messages.
+- Status codes: 200 success, 400 validation or business error (including "X not found"), 401 missing/invalid token or failed login, 404 unknown route, 500 only for unexpected middleware errors (generic message; details go to `console.error`).
+- Services parse `body` and `query` with Zod, which also strips unknown keys and rejects `{ "$gt": "" }`-style operator values. Every id is checked with `assertObjectId` before a query. The JSON body size limit is `100kb`.
+- Records are returned with `.lean()` and their `_id` as is; `nameLower` and `password` are `select: false`, and there is no `__v`.
 
 ---
 
 ## 8. Frontend Patterns
 
-| Concern                           | Pattern                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **List pages**                    | The page is a Server Component whose header is in the static shell. A child async component awaits `searchParams`, parses them with a lenient Zod schema (invalid values fall back to defaults), fetches, and renders inside `<Suspense fallback={<TableSkeleton/>}>`.                                                                                                                                                                         |
-| **Search / filters / pagination** | Client components read `useSearchParams()` and update the URL with `router.replace(pathname + '?' + params, { scroll: false })` inside `startTransition`. Search is debounced by 300 ms, and changing a filter resets `page` to 1. Pagination uses `<Link>`, which gets prefetching.                                                                                                                                                           |
-| **Mutations**                     | Dialog forms submit from an event handler (`useFormAction` hook): Zod validates on the client for instant feedback, then the Server Action (inside `startTransition`) re-validates, calls `data/`, maps API errors (400 → field errors, 409 → email taken) to an `ActionResult`, and calls `refresh()`. Unlike `<form action>`, this keeps the input when there are errors. The login form keeps `useActionState` for progressive enhancement. |
-| **Delete**                        | `ConfirmDialog` (alert dialog) stays open and disabled while the Server Action runs, then closes on success; a toast reports the result and `refresh()` updates the list.                                                                                                                                                                                                                                                                      |
-| **Dashboard**                     | One date-range preset control (URL `range`) scopes every widget. Each widget is an async Server Component in its own `<Suspense>`, streaming independently; on a range change the current widgets dim instead of flashing skeletons. Charts are client components (shadcn chart on Recharts), which only the dashboard route's bundle loads (automatic route code splitting). Each chart has a screen-reader data table.                       |
-| **Loading / error**               | `<Suspense>` boundaries inside pages give per-section skeletons, so no `loading.tsx` is needed (the static shell already renders instantly). Filter changes run in a transition: the current rows stay visible and dim (`ListContent`) instead of flashing a skeleton. `error.tsx` boundaries use `retry()`; `not-found.tsx` for unknown IDs.                                                                                                  |
-| **Performance**                   | Server Components by default keep client JS small. `next/font` for fonts. Only the needed columns are fetched. No client-side data cache to sync. Interactive leaves are kept small to limit re-renders.                                                                                                                                                                                                                                       |
-| **Responsive**                    | Below `md`, the sidebar becomes a `Sheet` drawer and tables become stacked cards. Layouts are mobile-first, and the app is tested at 375px and 1440px.                                                                                                                                                                                                                                                                                         |
-| **Accessibility**                 | Radix primitives handle focus and ARIA. Every input has a label. Errors are linked with `aria-describedby`. Contrast meets WCAG AA.                                                                                                                                                                                                                                                                                                            |
-| **Caching**                       | `cacheComponents` is **on**, the Next 16 template default. Static UI (the layout chrome) is prerendered into a static shell. Anything reading `cookies()` or `searchParams`, which is all API data, sits inside `<Suspense>` and streams at request time; with Cache Components, reading them outside a boundary is a build error. API data is not cached with `use cache`, because the session token must never become part of a cache key.   |
+| Concern                           | Pattern                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **List pages**                    | The page is a Server Component whose header is in the static shell. A child async component awaits `searchParams`, parses them with a lenient Zod schema (invalid values fall back to defaults), fetches, and renders inside `<Suspense fallback={<TableSkeleton/>}>`.                                                                                                                                                                                                                  |
+| **Search / filters / pagination** | Client components read `useSearchParams()` and update the URL with `router.replace(pathname + '?' + params, { scroll: false })` inside `startTransition`. Search is debounced by 300 ms, and changing a filter resets `page` to 1. Pagination uses `<Link>`, which gets prefetching.                                                                                                                                                                                                    |
+| **Mutations**                     | Dialog forms submit from an event handler (`useFormAction` hook): Zod validates on the client for instant feedback, then the Server Action (inside `startTransition`) re-validates, calls `data/`, maps API errors ("email already exists" → email field error, "not found" → stale-record message) to an `ActionResult`, and calls `refresh()`. Unlike `<form action>`, this keeps the input when there are errors. The login form keeps `useActionState` for progressive enhancement. |
+| **Delete**                        | `ConfirmDialog` (alert dialog) stays open and disabled while the Server Action runs, then closes on success; a toast reports the result and `refresh()` updates the list.                                                                                                                                                                                                                                                                                                               |
+| **Dashboard**                     | One date-range preset control (URL `range`) scopes every widget. Each widget is an async Server Component in its own `<Suspense>`, streaming independently; on a range change the current widgets dim instead of flashing skeletons. Charts are client components (shadcn chart on Recharts), which only the dashboard route's bundle loads (automatic route code splitting). Each chart has a screen-reader data table.                                                                |
+| **Loading / error**               | `<Suspense>` boundaries inside pages give per-section skeletons, so no `loading.tsx` is needed (the static shell already renders instantly). Filter changes run in a transition: the current rows stay visible and dim (`ListContent`) instead of flashing a skeleton. `error.tsx` boundaries use `retry()`; `not-found.tsx` for unknown IDs.                                                                                                                                           |
+| **Performance**                   | Server Components by default keep client JS small. `next/font` for fonts. Only the needed columns are fetched. No client-side data cache to sync. Interactive leaves are kept small to limit re-renders.                                                                                                                                                                                                                                                                                |
+| **Responsive**                    | Below `md`, the sidebar becomes a `Sheet` drawer and tables become stacked cards. Layouts are mobile-first, and the app is tested at 375px and 1440px.                                                                                                                                                                                                                                                                                                                                  |
+| **Accessibility**                 | Radix primitives handle focus and ARIA. Every input has a label. Errors are linked with `aria-describedby`. Contrast meets WCAG AA.                                                                                                                                                                                                                                                                                                                                                     |
+| **Caching**                       | `cacheComponents` is **on**, the Next 16 template default. Static UI (the layout chrome) is prerendered into a static shell. Anything reading `cookies()` or `searchParams`, which is all API data, sits inside `<Suspense>` and streams at request time; with Cache Components, reading them outside a boundary is a build error. API data is not cached with `use cache`, because the session token must never become part of a cache key.                                            |
 
 ---
 
@@ -396,8 +384,9 @@ The JWT payload holds only `sub` and `role`, with no PII, as the Next.js docs ad
   - No `NEXT_PUBLIC_` secrets.
 - **API:**
   - helmet (which also removes `X-Powered-By`).
-  - bcrypt with cost 12.
+  - bcrypt with cost 10.
   - Zod validation on every input; regex input is escaped; sort fields come from an allowlist (prevents NoSQL injection and ReDoS).
+  - A global auth gate with an explicit public-route allowlist; `JWT_SECRET` has no fallback (startup fails without it).
   - Generic 500 messages to clients.
   - `npm audit` in CI.
 - **Secrets:** `.env` files are git-ignored, and `.env.example` files are committed.
@@ -410,8 +399,8 @@ The JWT payload holds only `sub` and `role`, with no PII, as the Next.js docs ad
 
 ```
 NODE_ENV=development
-PORT=4000
-MONGODB_URI=mongodb://doctor_tracker_app:<password>@localhost:27017/doctor-tracker?authSource=doctor-tracker
+SERVER_PORT=4000
+MONGO_URI=mongodb://doctor_tracker_app:<password>@localhost:27017/doctor-tracker?authSource=doctor-tracker
 JWT_SECRET=generate-with-openssl-rand-base64-32
 JWT_EXPIRES_IN=8h
 SEED_ADMIN_EMAIL=admin@doctortracker.dev
@@ -421,7 +410,7 @@ SEED_ADMIN_PASSWORD=ChangeMe@123
 **`web/.env.example`**
 
 ```
-API_URL=http://localhost:4000/api/v1     # server-only, intentionally NOT NEXT_PUBLIC_
+API_URL=http://localhost:4000/api        # server-only, intentionally NOT NEXT_PUBLIC_
 JWT_SECRET=same-value-as-api             # used by proxy.ts / data/session.ts to verify the session
 ```
 
@@ -448,7 +437,7 @@ JWT_SECRET=same-value-as-api             # used by proxy.ts / data/session.ts to
 ### Verification Checklist
 
 - [ ] `npm run seed`, then `npm run dev` starts both apps, and the seeded admin can log in.
-- [ ] Opening `/doctors` without a session redirects to `/login`; `GET /api/v1/doctors` without a token returns 401 problem+json.
+- [ ] Opening `/doctors` without a session redirects to `/login`; `GET /api/doctor/list` without a token returns 401 with `{ isSuccess: false, message: "Authentication required" }`.
 - [ ] Search, filters and pagination update the URL; reloading or using back/forward restores the same view.
 - [ ] Create, edit and delete reflect immediately (revalidation), and the dashboard numbers update.
 - [ ] `explain()` shows IXSCAN for the doctor and patient list queries and the stats `$match`.

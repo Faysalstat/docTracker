@@ -1,10 +1,12 @@
-import type { AccessTokenPayload } from '../utils/jwt.js';
+import type { UserRole } from "../model/enums";
 
 declare global {
   namespace Express {
     interface Request {
-      /** Set by the `authenticate` middleware. */
-      user?: AccessTokenPayload;
+      // Set by auth-middleware from the verified JWT. Never read identity from the body or headers.
+      userId?: string;
+      userRole?: UserRole;
+      isAdmin?: boolean;
     }
   }
 }

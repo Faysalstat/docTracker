@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, type Locator, type Page, test } from '@playwright/test';
 
-const API_URL = process.env.E2E_API_URL ?? 'http://localhost:4000/api/v1';
+const API_URL = process.env.E2E_API_URL ?? 'http://localhost:4000/api';
 const runId = Date.now().toString(36);
 
 /** The session cookie holds the API JWT, so tests can arrange data through the API directly. */
@@ -23,7 +23,7 @@ test.describe('patients', () => {
   const doctorName = `Aa E2E Patients Doc ${runId}`;
 
   test.beforeAll(async ({ request }) => {
-    const res = await request.post(`${API_URL}/doctors`, {
+    const res = await request.post(`${API_URL}/doctor/create`, {
       headers: { Authorization: `Bearer ${sessionToken()}` },
       data: {
         name: doctorName,
@@ -33,7 +33,7 @@ test.describe('patients', () => {
         email: `e2e-patients-${runId}@example.com`,
       },
     });
-    expect(res.status()).toBe(201);
+    expect(res.status()).toBe(200);
   });
 
   test('creates, filters, edits and deletes a patient', async ({ page }) => {

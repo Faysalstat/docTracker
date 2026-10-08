@@ -1,6 +1,6 @@
 import 'server-only';
 import { redirect } from 'next/navigation';
-import type { FieldError, ProblemDetails } from '@/types/api';
+import type { ApiEnvelope } from '@/types/api';
 import { env } from './env';
 
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -9,7 +9,6 @@ export class ApiRequestError extends Error {
   constructor(
     public readonly status: number,
     message: string,
-    public readonly errors?: FieldError[],
   ) {
     super(message);
     this.name = 'ApiRequestError';
@@ -17,14 +16,17 @@ export class ApiRequestError extends Error {
 }
 
 interface ApiFetchOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   body?: unknown;
   query?: Record<string, string | number | undefined>;
   /** Session token. When set, a 401 from the API ends the session. */
   token?: string;
 }
 
-/** Server-to-server call to the Express API. Never imported by client code. */
+/**
+ * Server-to-server call to the Express API. Never imported by client code.
+ * Unwraps the API's `{ isSuccess, message, body }` envelope and returns `body`.
+ */
 export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
   const { method = 'GET', body, query, token } = options;
 
@@ -54,11 +56,14 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
     redirect('/logout');
   }
 
-  if (!res.ok) {
-    const problem = (await res.json().catch(() => null)) as ProblemDetails | null;
-    throw new ApiRequestError(res.status, problem?.detail ?? res.statusText, problem?.errors);
+  const envelope = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
+  if (!res.ok || !envelope?.isSuccess) {
+    throw new ApiRequestError(res.status, envelope?.message ?? res.statusText);
   }
+  return envelope.body;
+}
 
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+/** True when the API reported that the requested record does not exist ("X not found"). */
+export function isNotFoundError(error: unknown) {
+  return error instanceof ApiRequestError && error.message.endsWith(' not found');
 }

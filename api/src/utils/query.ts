@@ -1,34 +1,41 @@
-import { Types } from 'mongoose';
-import { z } from 'zod';
+import { z } from "zod";
+import { isoDateSchema } from "./validate";
 
-/** Escapes user input for safe use inside a RegExp (prevents ReDoS / regex injection). */
-export function escapeRegex(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export const MAX_LIMIT = 100;
+
+/** Treats an absent or "" query param as "not provided", as the list endpoints require. */
+export function optionalParam<T extends z.ZodType>(schema: T) {
+  return z.preprocess((value) => (value === "" ? undefined : value), schema.optional());
 }
 
-/** Anchored, case-sensitive prefix match: can use an index on the (normalized) field. */
-export function prefixRegex(value: string) {
-  return new RegExp(`^${escapeRegex(value)}`);
-}
+/** `offset`/`limit` for list endpoints. */
+export const paginationFields = {
+  offset: optionalParam(
+    z.coerce.number().int("must be a whole number").min(0, "must be 0 or more"),
+  ).transform((value) => value ?? 0),
+  limit: optionalParam(
+    z.coerce
+      .number()
+      .int("must be a whole number")
+      .min(1, "must be at least 1")
+      .max(MAX_LIMIT, `must be at most ${MAX_LIMIT}`),
+  ).transform((value) => value ?? 10),
+};
 
-export const objectIdSchema = z
-  .string()
-  .regex(/^[a-f\d]{24}$/i, 'Invalid id')
-  .refine((value) => Types.ObjectId.isValid(value), 'Invalid id');
+/** Optional trimmed search text. */
+export const searchParam = optionalParam(
+  z.string().trim().max(120, "must be at most 120 characters"),
+).transform((value) => value || undefined);
 
-export const idParamsSchema = z.object({ id: objectIdSchema });
-
-export const isoDateSchema = z.iso.date('Use the YYYY-MM-DD format');
-
-/** Optional calendar-day range fields for list queries. Combine with `refineDateRange`. */
+/** Optional calendar-day range fields. Combine with `refineDateRange`. */
 export const dateRangeFields = {
-  from: isoDateSchema.optional(),
-  to: isoDateSchema.optional(),
+  from: optionalParam(isoDateSchema),
+  to: optionalParam(isoDateSchema),
 };
 
 export function refineDateRange(value: { from?: string; to?: string }, ctx: z.RefinementCtx) {
   if (value.from && value.to && value.from > value.to) {
-    ctx.addIssue({ code: 'custom', message: '`from` must be on or before `to`', path: ['from'] });
+    ctx.addIssue({ code: "custom", message: "must be on or before to", path: ["from"] });
   }
 }
 
@@ -41,28 +48,39 @@ export function toDateRangeFilter(range: { from?: string; to?: string }) {
   };
 }
 
-/** Optional trimmed text; empty strings are treated as "not provided". */
-export const optionalTextSchema = z
-  .string()
-  .trim()
-  .max(120)
-  .optional()
-  .transform((value) => value || undefined);
+/** Escapes user input for safe use inside a RegExp (prevents ReDoS / regex injection). */
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Anchored, case-sensitive prefix match: can use an index on the (normalized) field. */
+function prefixRegex(value: string) {
+  return new RegExp(`^${escapeRegex(value)}`);
+}
+
+/** Name/email prefix search, or phone prefix search when the text starts like a number. */
+export function buildSearchFilter(q: string) {
+  const startsLikePhone = /^[+\d(]/.test(q);
+  return startsLikePhone
+    ? [{ phone: prefixRegex(q) }]
+    : [{ nameLower: prefixRegex(q.toLowerCase()) }, { email: prefixRegex(q.toLowerCase()) }];
+}
 
 /** Accepts `field` or `-field` from an allowlist and returns a Mongo sort with an `_id` tiebreaker. */
-export function sortSchema<T extends string>(
+export function sortParam<T extends string>(
   fields: Record<T, string>,
-  fallback: NoInfer<`${'' | '-'}${T}`>,
+  fallback: NoInfer<`${"" | "-"}${T}`>,
 ) {
   const keys = Object.keys(fields) as T[];
   const values = keys.flatMap((key) => [key, `-${key}`]);
-  return z
-    .string()
-    .default(fallback)
-    .refine((value) => values.includes(value), `Sort must be one of: ${values.join(', ')}`)
-    .transform((value) => {
-      const direction = value.startsWith('-') ? -1 : 1;
-      const key = value.replace(/^-/, '') as T;
+  return optionalParam(z.string())
+    .refine(
+      (value) => value === undefined || values.includes(value),
+      `must be one of: ${values.join(", ")}`,
+    )
+    .transform((value = fallback) => {
+      const direction = value.startsWith("-") ? -1 : 1;
+      const key = value.replace(/^-/, "") as T;
       const sort: Record<string, 1 | -1> = { [fields[key]]: direction, _id: direction };
       return sort;
     });

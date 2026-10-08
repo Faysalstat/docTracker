@@ -20,11 +20,10 @@ export async function getSummary(range: ResolvedRange) {
 
 export async function getTopDoctors(range: ResolvedRange, limit = 10) {
   const { token } = await verifySession();
-  const { data } = await apiFetch<{ data: DoctorPatientCount[] }>('/stats/patients-per-doctor', {
+  return apiFetch<DoctorPatientCount[]>('/stats/patients-per-doctor', {
     token,
     query: { ...rangeQuery(range), limit },
   });
-  return data;
 }
 
 export async function getAdmissions(range: ResolvedRange) {
@@ -34,9 +33,5 @@ export async function getAdmissions(range: ResolvedRange) {
 
 export async function getConditions(range: ResolvedRange) {
   const { token } = await verifySession();
-  const { data } = await apiFetch<{ data: ConditionCount[] }>('/stats/conditions', {
-    token,
-    query: rangeQuery(range),
-  });
-  return data;
+  return apiFetch<ConditionCount[]>('/stats/conditions', { token, query: rangeQuery(range) });
 }

@@ -1,16 +1,14 @@
-export interface FieldError {
-  field: string;
+/** Every API response: `{ isSuccess, message, body }` (body is null on failure). */
+export interface ApiEnvelope<T> {
+  isSuccess: boolean;
   message: string;
+  body: T;
 }
 
-/** RFC 9457 error body returned by the API. */
-export interface ProblemDetails {
-  type: string;
-  title: string;
-  status: number;
-  detail: string;
-  instance: string;
-  errors?: FieldError[];
+/** List body returned by the API: one page of rows plus the total number of matches. */
+export interface ApiList<T> {
+  data: T[];
+  length: number;
 }
 
 export interface PaginationMeta {

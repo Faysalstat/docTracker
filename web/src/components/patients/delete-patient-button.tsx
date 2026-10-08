@@ -10,7 +10,7 @@ export function DeletePatientButton({
   patient,
   onOptimisticDelete,
 }: {
-  patient: { id: string; name: string };
+  patient: { _id: string; name: string };
   /** Hides the row immediately; React reverts it automatically if the action fails. */
   onOptimisticDelete?: (id: string) => void;
 }) {
@@ -23,8 +23,8 @@ export function DeletePatientButton({
         </>
       }
       onConfirm={async () => {
-        onOptimisticDelete?.(patient.id);
-        const result = await removePatient(patient.id);
+        onOptimisticDelete?.(patient._id);
+        const result = await removePatient(patient._id);
         if (result.ok) toast.success(result.message);
         else toast.error(result.message ?? 'Could not delete the patient.');
         return result.ok;

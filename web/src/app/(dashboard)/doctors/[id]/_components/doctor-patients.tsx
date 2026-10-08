@@ -31,7 +31,7 @@ export async function DoctorPatients({
   const addPatient = (
     <PatientFormDialog
       mode="add-to-doctor"
-      doctorId={doctor.id}
+      doctorId={doctor._id}
       doctorName={doctor.name}
       trigger={
         <Button>

@@ -54,7 +54,7 @@ function submitPatient(
     case 'add-to-doctor':
       return addPatient(props.doctorId, input);
     case 'edit':
-      return savePatient(props.patient.id, input);
+      return savePatient(props.patient._id, input);
   }
 }
 
@@ -183,7 +183,7 @@ export function PatientFormDialog(props: PatientFormDialogProps) {
                 name="doctorId"
                 label="Doctor"
                 options={doctorOptions}
-                defaultValue={patient?.doctorId}
+                defaultValue={patient?.doctorId?._id}
                 placeholder="Select a doctor"
                 errors={fieldErrors}
               />

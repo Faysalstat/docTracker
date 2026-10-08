@@ -1,6 +1,6 @@
 # Doctor Tracker
 
-**Doctor Tracker is a secure admin portal for managing doctors and their patients.** Signed-in administrators register doctors, manage each doctor's patients, and find any record in a few keystrokes through search, filters and pagination. A built-in analytics dashboard shows how the practice is evolving: admissions over time, the busiest doctors, and the most common conditions. It is built as a **Next.js 16** frontend over a standalone **Express 5 REST API** and **MongoDB**. Every list, search and chart is answered by an index-backed query, the browser never holds an access token, and the UI is responsive, accessible and keeps all filters in the URL.
+**Doctor Tracker is a secure admin portal for managing doctors and their patients.** Signed-in administrators register doctors, manage each doctor's patients, and find any record in a few keystrokes through search, filters and pagination. A built-in analytics dashboard shows how the practice is evolving: admissions over time, the busiest doctors, and the most common conditions. It is built as a **Next.js 16** frontend over a standalone **Express REST API** and **MongoDB**. Every list, search and chart is answered by an index-backed query, the browser never holds an access token, and the UI is responsive, accessible and keeps all filters in the URL.
 
 <p align="center">
   <img src="doc/screenshots/desktop-dashboard.png" alt="Dashboard with KPI tiles, admissions trend, patients per doctor and patients by condition" width="900">
@@ -42,9 +42,9 @@
 | Layer        | Technology                                                                                                                                       |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Frontend** | Next.js 16 (App Router, React 19, Cache Components, Partial Prerendering), TypeScript, Tailwind CSS v4, shadcn/ui (Radix), Recharts, Zod, `jose` |
-| **Backend**  | Node.js 22, Express 5, TypeScript, Mongoose 9, Zod, `jose` (JWT), bcrypt, helmet, pino                                                           |
+| **Backend**  | Node.js 22, Express 4, TypeScript (compiled to CommonJS), Mongoose 9, Zod, `jsonwebtoken`, bcrypt, helmet, dotenv, nodemon                       |
 | **Database** | MongoDB 8 (Docker for local development)                                                                                                         |
-| **Quality**  | Vitest + Supertest + mongodb-memory-server (API), Playwright (end-to-end), ESLint (type-aware), Prettier                                         |
+| **Quality**  | `node:test` integration scripts against the dev DB (API), Playwright (end-to-end), ESLint (type-aware), Prettier                                 |
 | **Tooling**  | npm workspaces (`web`, `api`), Docker Compose (`infra`)                                                                                          |
 
 ---
@@ -77,14 +77,14 @@ cp web/.env.example   web/.env.local  # Web config
 
 Then edit them:
 
-| File             | Variable                                    | What to set                                                |
-| ---------------- | ------------------------------------------- | ---------------------------------------------------------- |
-| `infra/.env`     | `MONGO_ROOT_PASSWORD`, `MONGO_APP_PASSWORD` | Any strong passwords.                                      |
-| `api/.env`       | `MONGODB_URI`                               | Replace `change-me-app` with your `MONGO_APP_PASSWORD`.    |
-| `api/.env`       | `JWT_SECRET`                                | A random secret of at least 32 characters (see below).     |
-| `api/.env`       | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`   | The admin account the seed creates.                        |
-| `web/.env.local` | `JWT_SECRET`                                | **The same value** as in `api/.env`.                       |
-| `web/.env.local` | `API_URL`                                   | Keep `http://localhost:4000/api/v1` for local development. |
+| File             | Variable                                    | What to set                                             |
+| ---------------- | ------------------------------------------- | ------------------------------------------------------- |
+| `infra/.env`     | `MONGO_ROOT_PASSWORD`, `MONGO_APP_PASSWORD` | Any strong passwords.                                   |
+| `api/.env`       | `MONGO_URI`                                 | Replace `change-me-app` with your `MONGO_APP_PASSWORD`. |
+| `api/.env`       | `JWT_SECRET`                                | A random secret of at least 32 characters (see below).  |
+| `api/.env`       | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`   | The admin account the seed creates.                     |
+| `web/.env.local` | `JWT_SECRET`                                | **The same value** as in `api/.env`.                    |
+| `web/.env.local` | `API_URL`                                   | Keep `http://localhost:4000/api` for local development. |
 
 Generate a secret with either command:
 
@@ -113,6 +113,8 @@ npm run seed           # admin user only (safe to re-run; never touches doctors 
 
 > `seed:demo` **replaces** all doctors and patients with a deterministic demo dataset. It refuses to run when `NODE_ENV=production`.
 
+> **Upgrading an existing database** created before the backend followed the project rules (collections `users`/`doctors`/`patients`)? Take a backup, then run `npm run migrate:rules-alignment -w api` once. It renames the collections and fields (`patient.doctor` → `doctorId`, `user.passwordHash` → `password`) and syncs the indexes. It is safe to re-run.
+
 ### 5. Run
 
 ```bash
@@ -130,13 +132,14 @@ Open **http://localhost:3000** and sign in with the admin account from `api/.env
 | Command                                   | Description                                                                         |
 | ----------------------------------------- | ----------------------------------------------------------------------------------- |
 | `npm run dev`                             | Run API and web in watch mode                                                       |
-| `npm run build`                           | Production build of both apps (`npm run start -w api` / `-w web` to serve)          |
+| `npm run build`                           | Production build of both apps (`npm run serve -w api` / `npm run start -w web`)     |
 | `npm run lint` / `npm run typecheck`      | ESLint and TypeScript across both workspaces                                        |
-| `npm test`                                | API integration tests (in-memory MongoDB; no setup needed)                          |
+| `npm test`                                | API integration tests against the dev DB (needs MongoDB; cleans up after itself)    |
 | `npm run test:e2e`                        | Playwright end-to-end tests (needs MongoDB, seeded data and `npm run build -w web`) |
 | `npm run seed` / `npm run seed:demo`      | Admin only / admin + demo data                                                      |
 | `npm run infra:up` / `npm run infra:down` | Start / stop MongoDB                                                                |
 | `npm run format`                          | Prettier                                                                            |
+| `npm run sync-indexes -w api`             | Build/drop indexes to match the schemas (autoIndex is off in production)            |
 
 ---
 
@@ -151,9 +154,9 @@ flowchart LR
         SA["Server Actions<br/>(writes)"]
         DAL["data/ · server-only DAL<br/>verifySession · apiFetch"]
     end
-    subgraph API["api/ · Express 5"]
-        MW["helmet · JSON limit · authenticate (JWT)"]
-        MOD["routes → controllers (Zod)<br/>→ services → models"]
+    subgraph API["api/ · Express 4"]
+        MW["helmet · JSON limit · global auth gate<br/>(public-route allowlist)"]
+        MOD["router → controller → service (Zod)<br/>→ repository → model"]
     end
     DB[("MongoDB 8<br/>ESR indexes")]
 
@@ -173,8 +176,8 @@ flowchart LR
 2. **`proxy.ts`** (Next 16's replacement for middleware) verifies the session cookie's signature and expiry, then redirects anonymous users to `/login`. This is an _optimistic_ check only.
 3. **Server Components** read data through the **Data Access Layer** (`web/src/data`, marked `server-only`). Every DAL call runs `verifySession()` and forwards the JWT as `Authorization: Bearer` to the API.
 4. **Server Actions** handle mutations. They re-validate input with Zod, call the DAL, map API errors to form errors, and `refresh()` the router so the page shows fresh data.
-5. **Express** verifies the JWT again on every request (the authoritative check), validates input with Zod, and runs index-backed MongoDB queries. All analytics are **aggregation pipelines**, so the web app only receives small result sets.
-6. **Errors** use one format end to end: [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) `application/problem+json`, with field-level `errors` for validation failures.
+5. **Express** verifies the JWT again on every request (the authoritative check: a global auth middleware runs before every router, and only routes on an explicit allowlist are public). Services validate input with Zod and run index-backed MongoDB queries. All analytics are **aggregation pipelines**, so the web app only receives small result sets.
+6. **Responses** use one envelope end to end: `{ isSuccess, message, body }`. Failures carry a readable message such as `"Doctor creation failed: email already exists"`; the DAL unwraps `body` or throws.
 
 **Authentication flow**
 
@@ -186,13 +189,13 @@ sequenceDiagram
     participant M as MongoDB
     U->>W: submit email + password
     W->>W: Zod validation
-    W->>A: POST /api/v1/auth/login
-    A->>M: find user (+passwordHash)
+    W->>A: POST /api/auth/login
+    A->>M: find user (+password)
     A->>A: bcrypt.compare (constant time for unknown emails)
     A-->>W: { token (HS256, 8h), expiresAt, user }
     W->>W: set cookie "session": httpOnly · SameSite=Lax · Path=/ · Expires (+ Secure in production)
     W-->>U: 303 → /dashboard
-    Note over U,A: Later requests: proxy.ts (optimistic) → DAL verifySession → API authenticate (authoritative)
+    Note over U,A: Later requests: proxy.ts (optimistic) → DAL verifySession → API auth-middleware (authoritative)
 ```
 
 **Rendering.** Pages use **Partial Prerendering**. The app shell (sidebar, headers) is static and served instantly, while data sections stream in behind `<Suspense>` boundaries with skeletons. When filters change, the current rows stay visible and dim instead of flashing a skeleton.
@@ -203,8 +206,8 @@ sequenceDiagram
 doctor-tracker/
 ├─ web/      Next.js app: src/app (routes; private _components per route), src/data (server-only DAL),
 │            src/actions (Server Actions), src/components (ui, data-table, charts, forms, …), e2e/
-├─ api/      Express app: src/modules/{auth,users,doctors,patients,stats}/{routes,controller,service,model,schema},
-│            src/middlewares, src/config, scripts/seed.ts, tests/
+├─ api/      Express app: app.ts, src/{router,controller,service,repository,model,middleware,connector,config,utils},
+│            scripts/ (seed, migrations, sync-indexes), test/, backups/ (git-ignored dumps)
 ├─ infra/    Standalone services: docker-compose.yml, MongoDB image with init script
 └─ doc/      PRD, architecture, development plan, screenshots
 ```
@@ -234,7 +237,7 @@ doctor-tracker/
 **Consequences**
 
 - ✅ **The token never reaches client JavaScript.** XSS can't exfiltrate it, and no CORS configuration is needed.
-- ✅ **Defence in depth:** `proxy.ts` (optimistic redirect), then `verifySession()` in every data call and Server Action, then `authenticate` in Express. Each layer would stop an unauthenticated request on its own.
+- ✅ **Defence in depth:** `proxy.ts` (optimistic redirect), then `verifySession()` in every data call and Server Action, then the global auth middleware in Express. Each layer would stop an unauthenticated request on its own.
 - ✅ **Faster first paint:** data is fetched on the server, close to the API, and streamed into a prerendered shell. There is no client waterfall and no loading spinner after hydration.
 - ⚠️ **Trade-off:** each request makes an extra hop (browser → Next → API). On the seeded dataset the API answers in **~13–27 ms** (median), and streaming hides the rest.
 - ⚠️ **Edge case handled:** if the API rejects a still-valid-looking cookie (e.g. the user was deleted), the DAL redirects to a `/logout` route that clears the cookie. Without this, `proxy.ts` and the page would bounce the user between `/login` and `/dashboard` forever.
@@ -273,16 +276,16 @@ A search keystroke updates the URL after a 300 ms debounce, inside a transition.
 
 | Collection | Index                                                      | Serves                                         |
 | ---------- | ---------------------------------------------------------- | ---------------------------------------------- |
-| doctors    | `{ email: 1 }` unique                                      | Uniqueness, email prefix search                |
-| doctors    | `{ createdAt: -1, _id: -1 }`                               | Default list, joined-date range                |
-| doctors    | `{ specialization: 1, createdAt: -1, _id: -1 }`            | Specialization filter + sort                   |
-| doctors    | `{ hospital: 1, createdAt: -1, _id: -1 }`                  | Hospital filter + sort, hospital list          |
-| doctors    | `{ nameLower: 1, _id: 1 }`                                 | Case-insensitive name prefix search, name sort |
-| patients   | `{ admissionDate: -1, _id: -1 }`                           | Default list, date range, all stats            |
-| patients   | `{ doctor: 1, admissionDate: -1, _id: -1 }`                | A doctor's patients, patients-per-doctor       |
-| patients   | `{ condition: 1, admissionDate: -1, _id: -1 }`             | Condition filter + sort                        |
-| patients   | `{ status: 1, admissionDate: -1, _id: -1 }`                | Status filter + sort                           |
-| patients   | `{ nameLower: 1, _id: 1 }`, `{ phone: 1 }`, `{ email: 1 }` | Prefix search                                  |
+| doctor     | `{ email: 1 }` unique                                      | Uniqueness, email prefix search                |
+| doctor     | `{ createdAt: -1, _id: -1 }`                               | Default list, joined-date range                |
+| doctor     | `{ specialization: 1, createdAt: -1, _id: -1 }`            | Specialization filter + sort                   |
+| doctor     | `{ hospital: 1, createdAt: -1, _id: -1 }`                  | Hospital filter + sort, hospital list          |
+| doctor     | `{ nameLower: 1, _id: 1 }`                                 | Case-insensitive name prefix search, name sort |
+| patient    | `{ admissionDate: -1, _id: -1 }`                           | Default list, date range, all stats            |
+| patient    | `{ doctorId: 1, admissionDate: -1, _id: -1 }`              | A doctor's patients, patients-per-doctor       |
+| patient    | `{ condition: 1, admissionDate: -1, _id: -1 }`             | Condition filter + sort                        |
+| patient    | `{ status: 1, admissionDate: -1, _id: -1 }`                | Status filter + sort                           |
+| patient    | `{ nameLower: 1, _id: 1 }`, `{ phone: 1 }`, `{ email: 1 }` | Prefix search                                  |
 
 **Verified with `explain('executionStats')`** on the seeded dataset (50 doctors, 2,000 patients):
 
@@ -292,13 +295,13 @@ A search keystroke updates the URL after a 300 ms debounce, inside a transition.
 | Doctors: specialization + sort    | `IXSCAN(specialization_1_createdAt_-1__id_-1)` | 5 / 5                      |
 | Doctors: name/email prefix search | `OR(IXSCAN(nameLower…), IXSCAN(email_1))`      | 1 / 1                      |
 | Patients: condition + sort        | `IXSCAN(condition_1_admissionDate_-1__id_-1)`  | 20 / 20                    |
-| Patients: a doctor's patients     | `IXSCAN(doctor_1_admissionDate_-1__id_-1)`     | 20 / 20                    |
+| Patients: a doctor's patients     | `IXSCAN(doctorId_1_admissionDate_-1__id_-1)`   | 20 / 20                    |
 | Stats: admissions over time       | `IXSCAN` → `PROJECTION_COVERED` → `GROUP`      | **0** (index-covered) / 29 |
 
 **Other practices**
 
 - **Search is index-friendly:** names are stored in a normalized `nameLower` field and matched with an _anchored_ prefix regex. A case-insensitive `/i` regex can't use an index efficiently, and `$text` matches whole words only, so "joh" wouldn't find "John". All user input is regex-escaped.
-- **Lean reads:** `find().select().sort().skip().limit().lean()` runs in parallel with `countDocuments` (`Promise.all`). Page size is capped at 100.
+- **Lean reads:** `find().sort().skip().limit().lean()` runs in parallel with `countDocuments` (`Promise.all`). Page size is capped at 100.
 - **Aggregations:** each pipeline starts with an index-backed `$match`, and `$lookup` runs only on the top-N rows. KPI counts are parallel index-backed `countDocuments` calls rather than one `$facet`, because `$facet` sub-pipelines can't use indexes.
 - **Honest analytics:** the period-over-period change is shown only when data covers the whole previous period, and the period still in progress is drawn dashed ("to date") so it isn't read as a drop.
 - **Frontend:** Server Components by default, with client components only at interactive leaves. Pages are partially prerendered with streamed sections, and request-level memoization (`React.cache`) means a page fetches a doctor once even when several components need it. Recharts ships only in the dashboard route's bundle.
@@ -309,49 +312,45 @@ A search keystroke updates the URL after a 300 ms debounce, inside a transition.
 
 ## API reference
 
-Base URL `http://localhost:4000/api/v1`. Every route except `/auth/login` requires `Authorization: Bearer <jwt>`.
+Base URL `http://localhost:4000/api`. Every route except `POST /auth/login` and the `GET /api` health check requires `Authorization: Bearer <jwt>`.
 
-| Method                     | Path                         | Description                                                                 |
-| -------------------------- | ---------------------------- | --------------------------------------------------------------------------- |
-| `GET`                      | `/health` _(no prefix)_      | Liveness + database status                                                  |
-| `POST`                     | `/auth/login`                | Exchange credentials for a JWT                                              |
-| `GET`                      | `/auth/me`                   | Current admin                                                               |
-| `GET`                      | `/doctors`                   | List: `page, limit, q, specialization, hospital, from, to, sort`            |
-| `POST`                     | `/doctors`                   | Create (409 on duplicate email)                                             |
-| `GET` / `PATCH`            | `/doctors/:id`               | Get / partially update a doctor                                             |
-| `GET`                      | `/doctors/options`           | `{ id, name }` pairs for pickers                                            |
-| `GET`                      | `/doctors/hospitals`         | Distinct hospital names                                                     |
-| `GET` / `POST`             | `/doctors/:id/patients`      | A doctor's patients / add a patient under the doctor                        |
-| `GET`                      | `/patients`                  | List: `page, limit, q, condition, status, gender, doctorId, from, to, sort` |
-| `POST`                     | `/patients`                  | Create (`doctorId` in body)                                                 |
-| `GET` / `PATCH` / `DELETE` | `/patients/:id`              | Get / update (incl. reassigning the doctor) / delete (204)                  |
-| `GET`                      | `/stats/summary`             | KPIs for `from`–`to` + previous-period comparison                           |
-| `GET`                      | `/stats/patients-per-doctor` | Top N doctors by patients in range                                          |
-| `GET`                      | `/stats/admissions`          | Admissions per `day`/`week`/`month` (zero-filled, `partial` flag)           |
-| `GET`                      | `/stats/conditions`          | Patients per condition in range                                             |
+| Method   | Path                         | Description                                                                   |
+| -------- | ---------------------------- | ----------------------------------------------------------------------------- |
+| `GET`    | `/` (i.e. `/api`)            | Liveness check                                                                |
+| `POST`   | `/auth/login`                | Exchange credentials for a JWT (401 on failure)                               |
+| `GET`    | `/auth/me`                   | Current admin                                                                 |
+| `GET`    | `/doctor/list`               | List: `offset, limit, q, specialization, hospital, from, to, sort`            |
+| `POST`   | `/doctor/create`             | Create a doctor                                                               |
+| `GET`    | `/doctor/getbyid?id=`        | One doctor, with its patient count                                            |
+| `PUT`    | `/doctor/update/:id`         | Update the fields that are sent                                               |
+| `GET`    | `/doctor/options`            | `{ _id, name }` pairs for pickers                                             |
+| `GET`    | `/doctor/hospitals`          | Distinct hospital names                                                       |
+| `GET`    | `/patient/list`              | List: `offset, limit, q, condition, status, gender, doctorId, from, to, sort` |
+| `POST`   | `/patient/create`            | Create (`doctorId` in the body)                                               |
+| `GET`    | `/patient/getbyid?id=`       | One patient                                                                   |
+| `PUT`    | `/patient/update/:id`        | Update the fields that are sent (incl. reassigning the doctor)                |
+| `DELETE` | `/patient/delete/:id`        | Delete a patient                                                              |
+| `GET`    | `/stats/summary`             | KPIs for `from`–`to` + previous-period comparison                             |
+| `GET`    | `/stats/patients-per-doctor` | Top N doctors by patients in range                                            |
+| `GET`    | `/stats/admissions`          | Admissions per `day`/`week`/`month` (zero-filled, `partial` flag)             |
+| `GET`    | `/stats/conditions`          | Patients per condition in range                                               |
 
-Lists return `{ data, meta: { page, limit, total, totalPages } }`. Sort takes `field` or `-field` from an allowlist. Dates are `YYYY-MM-DD` and inclusive (UTC). Errors are `application/problem+json`, for example:
+Every response uses the same envelope. Lists return `{ data, length }` in `body`, where `length` is the total number of matches. Records are sent with their MongoDB `_id`, and a patient's `doctorId` is populated with `{ _id, name, specialization }`. Sort takes `field` or `-field` from an allowlist. Dates are `YYYY-MM-DD` and inclusive (UTC). Status codes: 200 success, 400 validation or business error (including "X not found"), 401 authentication, 404 unknown route.
 
 ```json
-{
-  "type": "about:blank",
-  "title": "Bad Request",
-  "status": 400,
-  "detail": "Validation failed",
-  "instance": "/api/v1/doctors",
-  "errors": [{ "field": "email", "message": "Enter a valid email address" }]
-}
+{ "isSuccess": true, "message": "Doctor created successfully", "body": { "_id": "…", "name": "…" } }
+{ "isSuccess": false, "message": "Doctor creation failed: email already exists", "body": null }
 ```
 
 ---
 
 ## Testing
 
-| Suite                                                       | Scope                                                                                                                                                                                                                                                          | Command                             |
-| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| **API integration** (Vitest + Supertest, in-memory MongoDB) | 44 tests: auth (401, forged token, constant-time failure path), validation (400 with field errors), duplicates (409), search, filters, sorting, pagination, date ranges, regex-injection safety, stats (zero-filled buckets, partial flag, honest comparisons) | `npm test`                          |
-| **End-to-end** (Playwright, Chromium)                       | 12 tests: login and redirects; doctor create, search with URL state, duplicate email; add, edit and delete patients (optimistic); filters; not-found; dashboard range scoping and click-through; accessible chart tables                                       | `npm run test:e2e`                  |
-| **Static checks**                                           | Type-aware ESLint, strict TypeScript, Prettier                                                                                                                                                                                                                 | `npm run lint && npm run typecheck` |
+| Suite                                               | Scope                                                                                                                                                                                                                                                                                                                                       | Command                             |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| **API integration** (`node:test` + `fetch`, dev DB) | 46 tests: auth (401, forged token, generic failure message, operator injection), the response envelope, validation messages, duplicates, search, filters, sorting, offset pagination, date ranges, regex-injection safety, stats (zero-filled buckets, partial flag, honest comparisons). Each run tags its records and deletes only those. | `npm test`                          |
+| **End-to-end** (Playwright, Chromium)               | 12 tests: login and redirects; doctor create, search with URL state, duplicate email; add, edit and delete patients (optimistic); filters; not-found; dashboard range scoping and click-through; accessible chart tables                                                                                                                    | `npm run test:e2e`                  |
+| **Static checks**                                   | Type-aware ESLint, strict TypeScript, Prettier                                                                                                                                                                                                                                                                                              | `npm run lint && npm run typecheck` |
 
 ---
 

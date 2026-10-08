@@ -1,7 +1,14 @@
 import type { Condition, Gender, PatientStatus } from '@/lib/constants';
 
+/** The patient's doctor, populated by the API in place of the stored id. */
+export interface PatientDoctor {
+  _id: string;
+  name: string;
+  specialization: string;
+}
+
 export interface Patient {
-  id: string;
+  _id: string;
   name: string;
   age: number;
   gender: Gender;
@@ -10,8 +17,8 @@ export interface Patient {
   condition: Condition;
   status: PatientStatus;
   admissionDate: string;
-  doctorId: string;
-  doctor?: { id: string; name: string; specialization: string };
+  /** null only if the doctor record has been removed. */
+  doctorId: PatientDoctor | null;
   createdAt: string;
   updatedAt: string;
 }

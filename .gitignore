@@ -12,6 +12,9 @@ dist/
 build/
 out/
 coverage/
+
+# database dumps (mongodump), never committed
+backups/
 *.tsbuildinfo
 next-env.d.ts
 

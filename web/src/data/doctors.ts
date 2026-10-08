@@ -5,15 +5,20 @@ import type { DoctorListParams, PatientListParams } from '@/lib/search-params';
 import { isObjectId } from '@/lib/validations/common';
 import type { DoctorFormInput } from '@/lib/validations/doctor';
 import type { PatientFormInput } from '@/lib/validations/patient';
-import type { Paginated } from '@/types/api';
+import type { ApiList } from '@/types/api';
 import type { Doctor } from '@/types/doctor';
 import type { Patient } from '@/types/patient';
-import { ApiRequestError, apiFetch } from './api-client';
+import { apiFetch, isNotFoundError } from './api-client';
 import { verifySession } from './auth';
+import { toOffsetQuery, toPaginated } from './pagination';
 
 export async function getDoctors(params: DoctorListParams) {
   const { token } = await verifySession();
-  return apiFetch<Paginated<Doctor>>('/doctors', { token, query: params });
+  const list = await apiFetch<ApiList<Doctor>>('/doctor/list', {
+    token,
+    query: toOffsetQuery(params),
+  });
+  return toPaginated(list, params.page, params.limit);
 }
 
 /**
@@ -24,48 +29,48 @@ export const getDoctor = cache(async (id: string) => {
   if (!isObjectId(id)) notFound();
   const { token } = await verifySession();
   try {
-    return await apiFetch<Doctor>(`/doctors/${id}`, { token });
+    return await apiFetch<Doctor>('/doctor/getbyid', { token, query: { id } });
   } catch (error) {
-    if (error instanceof ApiRequestError && error.status === 404) notFound();
+    if (isNotFoundError(error)) notFound();
     throw error;
   }
 });
 
 export async function getDoctorPatients(id: string, params: PatientListParams) {
   const { token } = await verifySession();
-  // The doctor comes from the path; undefined query values are omitted.
-  const query = { ...params, doctorId: undefined };
-  return apiFetch<Paginated<Patient>>(`/doctors/${id}/patients`, { token, query });
+  // The doctor comes from the path, not from the (user-editable) query string.
+  const list = await apiFetch<ApiList<Patient>>('/patient/list', {
+    token,
+    query: { ...toOffsetQuery(params), doctorId: id },
+  });
+  return toPaginated(list, params.page, params.limit);
 }
 
-/** id/name pairs for doctor pickers. Memoized per request (used by several components). */
+/** _id/name pairs for doctor pickers. Memoized per request (used by several components). */
 export const getDoctorOptions = cache(async () => {
   const { token } = await verifySession();
-  const { data } = await apiFetch<{ data: { id: string; name: string }[] }>('/doctors/options', {
-    token,
-  });
-  return data.map((doctor) => ({ value: doctor.id, label: doctor.name }));
+  const doctors = await apiFetch<{ _id: string; name: string }[]>('/doctor/options', { token });
+  return doctors.map((doctor) => ({ value: doctor._id, label: doctor.name }));
 });
 
 export async function getHospitals() {
   const { token } = await verifySession();
-  const { data } = await apiFetch<{ data: string[] }>('/doctors/hospitals', { token });
-  return data;
+  return apiFetch<string[]>('/doctor/hospitals', { token });
 }
 
 export async function createDoctor(input: DoctorFormInput) {
   const { token } = await verifySession();
-  return apiFetch<Doctor>('/doctors', { method: 'POST', body: input, token });
+  return apiFetch<Doctor>('/doctor/create', { method: 'POST', body: input, token });
 }
 
 export async function updateDoctor(id: string, input: DoctorFormInput) {
   const { token } = await verifySession();
-  return apiFetch<Doctor>(`/doctors/${id}`, { method: 'PATCH', body: input, token });
+  return apiFetch<Doctor>(`/doctor/update/${id}`, { method: 'PUT', body: input, token });
 }
 
 export async function addPatientToDoctor(doctorId: string, input: PatientFormInput) {
   const { token } = await verifySession();
-  // The doctor comes from the path; JSON.stringify drops the undefined field.
-  const body = { ...input, doctorId: undefined };
-  return apiFetch<Patient>(`/doctors/${doctorId}/patients`, { method: 'POST', body, token });
+  // The doctor comes from the page, not from the form.
+  const body = { ...input, doctorId };
+  return apiFetch<Patient>('/patient/create', { method: 'POST', body, token });
 }

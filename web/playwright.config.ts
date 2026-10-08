@@ -44,7 +44,7 @@ export default defineConfig({
     {
       command: 'npm run dev -w api',
       cwd: '..',
-      url: 'http://localhost:4000/health',
+      url: 'http://localhost:4000/api',
       reuseExistingServer: true,
       timeout: 60_000,
     },
