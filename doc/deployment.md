@@ -10,7 +10,7 @@ How to put Doctor Tracker online on free tiers: **Vercel** (web), **Render** (AP
 
 | #   | Phase        | What you do                                                                        | Result                               |
 | --- | ------------ | ---------------------------------------------------------------------------------- | ------------------------------------ |
-| 0   | Prepare repo | Commit, check that everything passes, merge to `master`, push to GitHub            | A clean branch to deploy from        |
+| 0   | Prepare repo | Commit, check that everything passes, merge into the `deploy` branch, push to GitHub            | A clean branch to deploy from        |
 | 1   | Database     | Create a free Atlas M0 cluster, an app user and network access                     | A `mongodb+srv://` connection string |
 | 2   | Prepare DB   | From your machine: sync indexes, seed the admin account (and optionally demo data) | Production DB is ready               |
 | 3   | API          | Create a Render web service from the repo and set its env vars                     | `https://<api>.onrender.com/api`     |
@@ -83,7 +83,7 @@ Render and Vercel deploy from GitHub (`origin` = `github.com/Faysalstat/docTrack
    npm run build       # builds api/dist and web/.next, as the hosts will
    ```
 
-3. Open a pull request, merge into `master`, and push. Both hosts will deploy `master` (the production branch).
+3. Merge your work into the `deploy` branch and push it. Both hosts deploy `deploy` (the production branch). Render reads it from `render.yaml`; in Vercel set it under *Settings → Git → Production Branch*.
 4. Make sure no `.env` or `.env.local` file is tracked: `git ls-files | Select-String "\.env"` should list only `.env.example` files.
 
 ---
@@ -156,7 +156,7 @@ Your IP must be allowed in Atlas Network Access (step 1.4 covers this).
 [`render.yaml`](../render.yaml) at the repo root holds every setting below, so you don't type them in.
 
 1. Sign up at <https://render.com> with GitHub and allow access to the `docTracker` repository.
-2. **New → Blueprint** → choose the repository and branch `master`.
+2. **New → Blueprint** → choose the repository and branch `deploy`.
 3. Render reads `render.yaml` and asks for the two secrets (`sync: false`). Paste `MONGO_URI` and `JWT_SECRET` from `api/.env.production`.
 4. **Deploy Blueprint**, then continue at item 5 below to check the logs.
 
@@ -172,7 +172,7 @@ Changes to the service settings go in `render.yaml` and deploy with the next pus
    | ----------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
    | Name              | `doctor-tracker-api`                                                                 | Sets the URL: `https://doctor-tracker-api.onrender.com`. If the name is taken, Render adds a suffix; use the URL it shows. |
    | Region            | Virginia (US East)                                                                   | Same region as Atlas.                                                                                                      |
-   | Branch            | `master`                                                                             |                                                                                                                            |
+   | Branch            | `deploy`                                                                             |                                                                                                                            |
    | Root Directory    | _(leave empty)_                                                                      | The repo is an npm workspace with one `package-lock.json` at the root, so install from the root.                           |
    | Runtime           | Node                                                                                 |                                                                                                                            |
    | Build Command     | `npm ci --include=dev -w api --include-workspace-root=false && npm run build -w api` | Installs only the API packages. `--include=dev` keeps TypeScript, which `NODE_ENV=production` would otherwise skip.        |
@@ -281,7 +281,7 @@ npm run test:e2e
 
 | Task                                 | How                                                                                                                                                                                                   |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Release                              | Merge to `master`. Render and Vercel both deploy automatically. Pull requests get a Vercel preview, which calls the production API unless you set a different Preview `API_URL`.                      |
+| Release                              | Merge into `deploy`. Render and Vercel both deploy automatically. Pull requests get a Vercel preview, which calls the production API unless you set a different Preview `API_URL`.                      |
 | Schema / index change                | After deploying, run `npm run sync-indexes -w api` from your machine with `$env:MONGO_URI` set to Atlas (as in step 2).                                                                               |
 | Data migration                       | Back up first (below), then run the `scripts/migrate-*.ts` script the same way.                                                                                                                       |
 | Backup (M0 has no automatic backups) | `mongodump --uri "<atlas uri>" --out api/backups/$(Get-Date -Format yyyy-MM-dd)`. `api/backups/` is git-ignored. Needs [MongoDB Database Tools](https://www.mongodb.com/try/download/database-tools). |

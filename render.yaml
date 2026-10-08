@@ -7,7 +7,7 @@ services:
     plan: free
     # Keep in the same region as the Atlas cluster (AWS us-east-1).
     region: virginia
-    branch: master
+    branch: deploy
     # Installs only the api workspace from the root lockfile. --include=dev keeps
     # TypeScript, which NODE_ENV=production would otherwise skip.
     buildCommand: npm ci --include=dev -w api --include-workspace-root=false && npm run build -w api
