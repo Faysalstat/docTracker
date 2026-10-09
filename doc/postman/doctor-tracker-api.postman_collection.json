@@ -1,0 +1,1734 @@
+{
+  "info": {
+    "name": "Doctor Tracker API",
+    "description": "Requests for every endpoint of the Doctor Tracker API, with test scripts.\n\n**Setup**\n1. Start the API (`npm run dev` in `api/`) and run `npm run seed` once to create the admin user.\n2. Check the collection variables: `baseUrl` (default `http://localhost:4000/api`; live API: `https://doctor-tracker-api-yvow.onrender.com/api`), `adminEmail`, `adminPassword` (from `SEED_ADMIN_*` in `api/.env`).\n3. Run **Auth → Login** first. It stores the JWT in `token`, and every other request sends it as a Bearer token.\n\nRunning the whole collection in order (Collection Runner) works end to end: create requests save `doctorId` / `patientId` for the requests after them, and the patient created by the run is deleted at the end.\n\nEvery response uses the envelope `{ isSuccess, message, body }`. Business and validation errors return 400; auth failures return 401.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.collectionVariables.set(\"today\", new Date().toISOString().slice(0, 10));"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000/api"
+    },
+    {
+      "key": "adminEmail",
+      "value": "admin@doctortracker.dev"
+    },
+    {
+      "key": "adminPassword",
+      "value": "ChangeMe@123"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "doctorId",
+      "value": ""
+    },
+    {
+      "key": "patientId",
+      "value": ""
+    },
+    {
+      "key": "today",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "description": "Mounted before the auth gate; no token needed.",
+      "item": [
+        {
+          "name": "API alive",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": []
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and alive message\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().message).to.eql(\"API is alive\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "description": "POST /auth/login is the only public route.",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Returns `{ token, expiresAt, user }`. The test script saves the token to the `token` collection variable."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "const body = pm.response.json().body;",
+                  "pm.test(\"returns a token and no password\", () => {",
+                  "  pm.expect(body && body.token).to.be.a(\"string\");",
+                  "  pm.expect(body && body.user).to.not.have.property(\"password\");",
+                  "});",
+                  "if (body && body.token) pm.collectionVariables.set(\"token\", body.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - wrong password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"wrong-password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401 and isSuccess=false\", () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(false);",
+                  "});",
+                  "pm.test(\"message mentions 'Invalid email or password'\", () => {",
+                  "  pm.expect(pm.response.json().message).to.include(\"Invalid email or password\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - invalid email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"not-an-email\",\n  \"password\": \"x\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401 and isSuccess=false\", () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(false);",
+                  "});",
+                  "pm.test(\"message mentions 'email must be a valid email address'\", () => {",
+                  "  pm.expect(pm.response.json().message).to.include(\"email must be a valid email address\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Current user",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "pm.test(\"user has role admin\", () => {",
+                  "  pm.expect(pm.response.json().body.role).to.eql(\"admin\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Current user - no token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401 and isSuccess=false\", () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(false);",
+                  "});",
+                  "pm.test(\"message mentions 'Authentication required'\", () => {",
+                  "  pm.expect(pm.response.json().message).to.include(\"Authentication required\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Current user - bad token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "not-a-real-token",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401 and isSuccess=false\", () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(false);",
+                  "});",
+                  "pm.test(\"message mentions 'Invalid or expired token'\", () => {",
+                  "  pm.expect(pm.response.json().message).to.include(\"Invalid or expired token\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Doctors",
+      "description": "Create and update need an admin token.",
+      "item": [
+        {
+          "name": "Create doctor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/doctor/create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doctor",
+                "create"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Dr. Postman Test\",\n  \"specialization\": \"Cardiology\",\n  \"hospital\": \"City General Hospital\",\n  \"phone\": \"+1 555 010 {{$randomInt}}\",\n  \"email\": \"dr.postman.{{$timestamp}}@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "specialization: Cardiology, Dermatology, Endocrinology, Gastroenterology, General Practice, Neurology, Obstetrics & Gynecology, Oncology, Ophthalmology, Orthopedics, Pediatrics, Psychiatry, Pulmonology, Radiology, Urology.\n\nSaves the new id to `doctorId`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "const body = pm.response.json().body;",
+                  "pm.test(\"new doctor has 0 patients\", () => pm.expect(body.patientCount).to.eql(0));",
+                  "pm.collectionVariables.set(\"doctorId\", body._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create doctor - validation error",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/doctor/create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doctor",
+                "create"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"D\",\n  \"specialization\": \"Astrology\",\n  \"hospital\": \"X\",\n  \"phone\": \"abc\",\n  \"email\": \"bad\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 and isSuccess=false\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(false);",
+                  "});",
+                  "pm.test(\"message mentions 'name must be at least 2 characters'\", () => {",
+                  "  pm.expect(pm.response.json().message).to.include(\"name must be at least 2 characters\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List doctors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/doctor/list?offset=0&limit=10&q=&specialization=Cardiology&hospital=City General Hospital&from=2025-01-01&to={{today}}&sort=-createdAt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doctor",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Default 0"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "1-100, default 10"
+                },
+                {
+                  "key": "q",
+                  "value": "",
+                  "description": "Name/email prefix, or phone prefix when it starts like a number",
+                  "disabled": true
+                },
+                {
+                  "key": "specialization",
+                  "value": "Cardiology",
+                  "description": "Exact specialization",
+                  "disabled": true
+                },
+                {
+                  "key": "hospital",
+                  "value": "City General Hospital",
+                  "description": "Exact hospital name",
+                  "disabled": true
+                },
+                {
+                  "key": "from",
+                  "value": "2025-01-01",
+                  "description": "createdAt from (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "{{today}}",
+                  "description": "createdAt to (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "-createdAt",
+                  "description": "name, -name, createdAt, -createdAt (default -createdAt)"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "pm.test(\"body has data[] and length\", () => {",
+                  "  const body = pm.response.json().body;",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  pm.expect(body.length).to.be.a(\"number\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List doctors - invalid sort",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/doctor/list?sort=age",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doctor",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "sort",
+                  "value": "age"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 and isSuccess=false\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(false);",
+                  "});",
+                  "pm.test(\"message mentions 'sort must be one of'\", () => {",
+                  "  pm.expect(pm.response.json().message).to.include(\"sort must be one of\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Doctor options",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/doctor/options",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doctor",
+                "options"
+              ]
+            },
+            "description": "Lightweight `{ _id, name }` list for pickers."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "pm.test(\"body is an array\", () => pm.expect(pm.response.json().body).to.be.an(\"array\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Hospitals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/doctor/hospitals",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doctor",
+                "hospitals"
+              ]
+            },
+            "description": "Distinct hospital names, sorted."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "pm.test(\"body is an array of strings\", () => {",
+                  "  const body = pm.response.json().body;",
+                  "  pm.expect(body).to.be.an(\"array\");",
+                  "  body.forEach((h) => pm.expect(h).to.be.a(\"string\"));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get doctor by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/doctor/getbyid?id={{doctorId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doctor",
+                "getbyid"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{doctorId}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "pm.test(\"returns the requested doctor\", () => {",
+                  "  pm.expect(pm.response.json().body._id).to.eql(pm.collectionVariables.get(\"doctorId\"));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get doctor by id - not found",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/doctor/getbyid?id=000000000000000000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doctor",
+                "getbyid"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "000000000000000000000000"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 and isSuccess=false\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(false);",
+                  "});",
+                  "pm.test(\"message mentions 'Doctor not found'\", () => {",
+                  "  pm.expect(pm.response.json().message).to.include(\"Doctor not found\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update doctor",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/doctor/update/{{doctorId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doctor",
+                "update",
+                "{{doctorId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hospital\": \"Riverside Medical Center\",\n  \"specialization\": \"Neurology\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Partial update: only the fields sent are changed."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "pm.test(\"fields updated\", () => {",
+                  "  const body = pm.response.json().body;",
+                  "  pm.expect(body.hospital).to.eql(\"Riverside Medical Center\");",
+                  "  pm.expect(body.specialization).to.eql(\"Neurology\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update doctor - empty body",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/doctor/update/{{doctorId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "doctor",
+                "update",
+                "{{doctorId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 and isSuccess=false\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(false);",
+                  "});",
+                  "pm.test(\"message mentions 'Provide at least one field to update'\", () => {",
+                  "  pm.expect(pm.response.json().message).to.include(\"Provide at least one field to update\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Patients",
+      "description": "Create, update and delete need an admin token. Run **Create doctor** first so `doctorId` is set.",
+      "item": [
+        {
+          "name": "Create patient",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patient/create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patient",
+                "create"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Patient\",\n  \"age\": 42,\n  \"gender\": \"female\",\n  \"phone\": \"+1 555 020 {{$randomInt}}\",\n  \"email\": \"patient.{{$timestamp}}@example.com\",\n  \"condition\": \"diabetes\",\n  \"status\": \"admitted\",\n  \"admissionDate\": \"{{today}}\",\n  \"doctorId\": \"{{doctorId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "gender: male, female, other. condition: diabetes, hypertension, asthma, cardiac, respiratory, other. status: admitted (default), under_treatment, recovered. email is optional. admissionDate is YYYY-MM-DD and cannot be in the future.\n\nSaves the new id to `patientId`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "const body = pm.response.json().body;",
+                  "pm.test(\"doctor is populated\", () => {",
+                  "  pm.expect(body.doctorId._id).to.eql(pm.collectionVariables.get(\"doctorId\"));",
+                  "  pm.expect(body.doctorId.name).to.be.a(\"string\");",
+                  "});",
+                  "pm.collectionVariables.set(\"patientId\", body._id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create patient - future admission date",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patient/create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patient",
+                "create"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Future Patient\",\n  \"age\": 30,\n  \"gender\": \"male\",\n  \"phone\": \"+1 555 030 0000\",\n  \"condition\": \"asthma\",\n  \"admissionDate\": \"2999-01-01\",\n  \"doctorId\": \"{{doctorId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 and isSuccess=false\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(false);",
+                  "});",
+                  "pm.test(\"message mentions 'admissionDate cannot be in the future'\", () => {",
+                  "  pm.expect(pm.response.json().message).to.include(\"admissionDate cannot be in the future\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create patient - unknown doctor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patient/create",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patient",
+                "create"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Orphan Patient\",\n  \"age\": 30,\n  \"gender\": \"male\",\n  \"phone\": \"+1 555 030 0001\",\n  \"condition\": \"asthma\",\n  \"admissionDate\": \"{{today}}\",\n  \"doctorId\": \"000000000000000000000000\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 and isSuccess=false\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(false);",
+                  "});",
+                  "pm.test(\"message mentions 'Doctor not found'\", () => {",
+                  "  pm.expect(pm.response.json().message).to.include(\"Doctor not found\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List patients",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patient/list?offset=0&limit=10&q=&doctorId={{doctorId}}&condition=diabetes&status=admitted&gender=female&from=2025-01-01&to={{today}}&sort=-admissionDate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patient",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Default 0"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "1-100, default 10"
+                },
+                {
+                  "key": "q",
+                  "value": "",
+                  "description": "Name/email prefix, or phone prefix when it starts like a number",
+                  "disabled": true
+                },
+                {
+                  "key": "doctorId",
+                  "value": "{{doctorId}}",
+                  "description": "Only this doctor's patients",
+                  "disabled": true
+                },
+                {
+                  "key": "condition",
+                  "value": "diabetes",
+                  "description": "diabetes, hypertension, asthma, cardiac, respiratory, other",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "admitted",
+                  "description": "admitted, under_treatment, recovered",
+                  "disabled": true
+                },
+                {
+                  "key": "gender",
+                  "value": "female",
+                  "description": "male, female, other",
+                  "disabled": true
+                },
+                {
+                  "key": "from",
+                  "value": "2025-01-01",
+                  "description": "admissionDate from (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "{{today}}",
+                  "description": "admissionDate to (YYYY-MM-DD)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "-admissionDate",
+                  "description": "name, admissionDate, age, each optionally prefixed with - (default -admissionDate)"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "pm.test(\"body has data[] and length\", () => {",
+                  "  const body = pm.response.json().body;",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  pm.expect(body.length).to.be.a(\"number\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List patients - by doctor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patient/list?doctorId={{doctorId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patient",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "doctorId",
+                  "value": "{{doctorId}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "pm.test(\"body has data[] and length\", () => {",
+                  "  const body = pm.response.json().body;",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "  pm.expect(body.length).to.be.a(\"number\");",
+                  "});",
+                  "pm.test(\"every patient belongs to the doctor\", () => {",
+                  "  const id = pm.collectionVariables.get(\"doctorId\");",
+                  "  pm.response.json().body.data.forEach((p) => pm.expect(p.doctorId._id).to.eql(id));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List patients - invalid date range",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patient/list?from=2025-12-31&to=2025-01-01",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patient",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2025-12-31"
+                },
+                {
+                  "key": "to",
+                  "value": "2025-01-01"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 and isSuccess=false\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(false);",
+                  "});",
+                  "pm.test(\"message mentions 'from must be on or before to'\", () => {",
+                  "  pm.expect(pm.response.json().message).to.include(\"from must be on or before to\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get patient by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patient/getbyid?id={{patientId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patient",
+                "getbyid"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "{{patientId}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "pm.test(\"returns the requested patient\", () => {",
+                  "  pm.expect(pm.response.json().body._id).to.eql(pm.collectionVariables.get(\"patientId\"));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get patient by id - invalid id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patient/getbyid?id=not-an-id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patient",
+                "getbyid"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "not-an-id"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 and isSuccess=false\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(false);",
+                  "});",
+                  "pm.test(\"message mentions 'patientId is invalid'\", () => {",
+                  "  pm.expect(pm.response.json().message).to.include(\"patientId is invalid\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update patient",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patient/update/{{patientId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patient",
+                "update",
+                "{{patientId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"under_treatment\",\n  \"age\": 43\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Partial update: only the fields sent are changed."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "pm.test(\"fields updated\", () => {",
+                  "  const body = pm.response.json().body;",
+                  "  pm.expect(body.status).to.eql(\"under_treatment\");",
+                  "  pm.expect(body.age).to.eql(43);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update patient - invalid status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patient/update/{{patientId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patient",
+                "update",
+                "{{patientId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"discharged\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 and isSuccess=false\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(false);",
+                  "});",
+                  "pm.test(\"message mentions 'status must be one of'\", () => {",
+                  "  pm.expect(pm.response.json().message).to.include(\"status must be one of\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Stats",
+      "description": "Dashboard analytics. `from`/`to` (YYYY-MM-DD) filter on admissionDate; omit both for all time.",
+      "item": [
+        {
+          "name": "Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/stats/summary?from=2025-01-01&to={{today}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "stats",
+                "summary"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2025-01-01",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "{{today}}",
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Totals plus admissions in the range. `previousAdmissions` / `previousRange` are only filled when both `from` and `to` are set and data covers the previous window."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "pm.test(\"has totals\", () => {",
+                  "  const body = pm.response.json().body;",
+                  "  [\"totalDoctors\", \"totalPatients\", \"avgPatientsPerDoctor\", \"currentlyAdmitted\", \"admissions\"].forEach((k) =>",
+                  "    pm.expect(body[k]).to.be.a(\"number\"),",
+                  "  );",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Patients per doctor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/stats/patients-per-doctor?limit=10&from=2025-01-01&to={{today}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "stats",
+                "patients-per-doctor"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "1-20, default 10"
+                },
+                {
+                  "key": "from",
+                  "value": "2025-01-01",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "{{today}}",
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "pm.test(\"body is an array\", () => pm.expect(pm.response.json().body).to.be.an(\"array\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Patients per doctor - limit too high",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/stats/patients-per-doctor?limit=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "stats",
+                "patients-per-doctor"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 and isSuccess=false\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(false);",
+                  "});",
+                  "pm.test(\"message mentions 'limit must be at most 20'\", () => {",
+                  "  pm.expect(pm.response.json().message).to.include(\"limit must be at most 20\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/stats/admissions?interval=week&from=2025-01-01&to={{today}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "stats",
+                "admissions"
+              ],
+              "query": [
+                {
+                  "key": "interval",
+                  "value": "week",
+                  "description": "day, week, month; picked from the range length when omitted",
+                  "disabled": true
+                },
+                {
+                  "key": "from",
+                  "value": "2025-01-01",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "{{today}}",
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Zero-filled series `{ interval, data: [{ date, count, partial? }] }`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "pm.test(\"has interval and data\", () => {",
+                  "  const body = pm.response.json().body;",
+                  "  pm.expect([\"day\", \"week\", \"month\"]).to.include(body.interval);",
+                  "  pm.expect(body.data).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Conditions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/stats/conditions?from=2025-01-01&to={{today}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "stats",
+                "conditions"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2025-01-01",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "{{today}}",
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Count per condition, every condition present, largest first."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "pm.test(\"all 6 conditions present\", () => pm.expect(pm.response.json().body).to.have.lengthOf(6));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "description": "Deletes the patient created by this run.",
+      "item": [
+        {
+          "name": "Delete patient",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patient/delete/{{patientId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patient",
+                "delete",
+                "{{patientId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 and isSuccess\", () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(true);",
+                  "});",
+                  "pm.test(\"returns the deleted id\", () => {",
+                  "  pm.expect(pm.response.json().body._id).to.eql(pm.collectionVariables.get(\"patientId\"));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete patient - already deleted",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patient/delete/{{patientId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patient",
+                "delete",
+                "{{patientId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 and isSuccess=false\", () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  pm.expect(pm.response.json().isSuccess).to.eql(false);",
+                  "});",
+                  "pm.test(\"message mentions 'Patient not found'\", () => {",
+                  "  pm.expect(pm.response.json().message).to.include(\"Patient not found\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Not found",
+      "description": "",
+      "item": [
+        {
+          "name": "Unknown route",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/does-not-exist",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "does-not-exist"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

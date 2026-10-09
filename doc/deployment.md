@@ -13,7 +13,7 @@ How to put Doctor Tracker online on free tiers: **Vercel** (web), **Render** (AP
 | 0   | Prepare repo | Commit, check that everything passes, merge into the `deploy` branch, push to GitHub            | A clean branch to deploy from        |
 | 1   | Database     | Create a free Atlas M0 cluster, an app user and network access                     | A `mongodb+srv://` connection string |
 | 2   | Prepare DB   | From your machine: sync indexes, seed the admin account (and optionally demo data) | Production DB is ready               |
-| 3   | API          | Create a Render web service from the repo and set its env vars                     | `https://<api>.onrender.com/api`     |
+| 3   | API          | Create a Render web service from the repo and set its env vars                     | `https://doctor-tracker-api-yvow.onrender.com/api` |
 | 4   | Web          | Import the repo into Vercel (root `web/`) and set `API_URL` and `JWT_SECRET`       | `https://<web>.vercel.app`           |
 | 5   | Keep-warm    | Ping the API every 10 minutes so Render's free instance never sleeps               | No first-request timeouts            |
 | 6   | Verify       | Run the smoke test checklist                                                       | Working app                          |
@@ -170,7 +170,7 @@ Changes to the service settings go in `render.yaml` and deploy with the next pus
 
    | Field             | Value                                                                                | Why                                                                                                                        |
    | ----------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-   | Name              | `doctor-tracker-api`                                                                 | Sets the URL: `https://doctor-tracker-api.onrender.com`. If the name is taken, Render adds a suffix; use the URL it shows. |
+   | Name              | `doctor-tracker-api`                                                                 | Sets the URL. The name was taken, so Render added a suffix: `https://doctor-tracker-api-yvow.onrender.com`. |
    | Region            | Virginia (US East)                                                                   | Same region as Atlas.                                                                                                      |
    | Branch            | `deploy`                                                                             |                                                                                                                            |
    | Root Directory    | _(leave empty)_                                                                      | The repo is an npm workspace with one `package-lock.json` at the root, so install from the root.                           |
@@ -208,7 +208,7 @@ Changes to the service settings go in `render.yaml` and deploy with the next pus
    server is running on 10000
    ```
 
-6. Check it: open `https://doctor-tracker-api.onrender.com/api` and you should get `{"message":"API is alive"}`. `GET /api/doctor/list` with no token should return **401**.
+6. Check it: open `https://doctor-tracker-api-yvow.onrender.com/api` and you should get `{"message":"API is alive"}`. `GET /api/doctor/list` with no token should return **401**.
 
 ---
 
@@ -228,7 +228,7 @@ Changes to the service settings go in `render.yaml` and deploy with the next pus
 
    | Key          | Value                                                                    |
    | ------------ | ------------------------------------------------------------------------ |
-   | `API_URL`    | `https://doctor-tracker-api.onrender.com/api` (your Render URL + `/api`) |
+   | `API_URL`    | `https://doctor-tracker-api-yvow.onrender.com/api` (your Render URL + `/api`) |
    | `JWT_SECRET` | **Exactly the same value** as on Render                                  |
 
    Both are validated at startup by [web/src/data/env.ts](../web/src/data/env.ts). A missing value or a secret shorter than 32 characters fails the build or the first request, which is what you want.
@@ -245,7 +245,7 @@ Changes to the service settings go in `render.yaml` and deploy with the next pus
 
 1. Sign up at <https://cron-job.org> (free).
 2. **Create cronjob**:
-   - URL: `https://doctor-tracker-api.onrender.com/api`
+   - URL: `https://doctor-tracker-api-yvow.onrender.com/api`
    - Schedule: every **10 minutes**
    - Notify on failure: on (you get an email if the API goes down).
 3. One always-on service uses about 744 of the 750 free instance hours a month. **Ping only one Render service.** A second always-on free service would run out of hours.
